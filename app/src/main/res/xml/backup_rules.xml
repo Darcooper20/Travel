@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup is disabled (android:allowBackup="false" in the manifest) because
+  this app stores OAuth tokens and an Anthropic API key locally. This file
+  is unused while allowBackup is false but kept for reference if you choose
+  to enable backups later - in that case, explicitly exclude the encrypted
+  prefs and database from the backup set.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="secure_prefs.xml" />
+    <exclude domain="database" path="travel_benefits.db" />
+</full-backup-content>

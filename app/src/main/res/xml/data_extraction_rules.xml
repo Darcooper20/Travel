@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ cloud backup / device transfer rules. Backup itself is off
+  (android:allowBackup="false"), so these rules are inert unless you turn
+  it back on - kept here so tokens/keys/database are excluded by default
+  if you do.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="secure_prefs.xml" />
+        <exclude domain="database" path="travel_benefits.db" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="secure_prefs.xml" />
+        <exclude domain="database" path="travel_benefits.db" />
+    </device-transfer>
+</data-extraction-rules>
