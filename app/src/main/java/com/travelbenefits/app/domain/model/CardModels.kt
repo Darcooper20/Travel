@@ -13,32 +13,48 @@ enum class SpendingCategory(val label: String) {
     DRUGSTORES("Drugstores"),
     TRANSIT("Transit & rideshare"),
     ENTERTAINMENT("Entertainment"),
+    RENT("Rent"),
+    OFFICE_SUPPLIES("Office supply stores"),
+    PHONE_INTERNET_CABLE("Phone, internet & cable services"),
+    SHIPPING("Shipping"),
     OTHER("Everything else"),
 }
 
-/** The unit a card's rewards are earned in - needed to compare a cash-back card against a points card fairly. */
-enum class RewardCurrency(val displayName: String, val estValueCentsPerPoint: Double) {
-    CASH_BACK("Cash back", 1.0),
+/**
+ * The unit a card's rewards are earned in - needed to compare a cash-back
+ * card against a points/miles card fairly. [estValueCentsPerPoint] figures
+ * are widely-cited third-party estimates (in the style of independent
+ * points-valuation trackers), NOT a guaranteed redemption value - actual
+ * value depends heavily on how you redeem. Treated as opinion/estimate
+ * input to ranking, not fact. [displayAsPercent] only controls how the UI
+ * formats the rate (e.g. "3%" vs "3x points") - it doesn't affect ranking.
+ */
+enum class RewardCurrency(
+    val displayName: String,
+    val estValueCentsPerPoint: Double,
+    val displayAsPercent: Boolean = false,
+) {
+    CASH_BACK("Cash back", 1.0, displayAsPercent = true),
     CHASE_UR("Chase Ultimate Rewards", 1.7),
     AMEX_MR("Amex Membership Rewards", 1.8),
     CAPITAL_ONE_MILES("Capital One Miles", 1.7),
     CITI_TYP("Citi ThankYou Points", 1.6),
     WELLS_REWARDS("Wells Fargo Rewards", 1.0),
-    BANK_OF_AMERICA_CASH("Bank of America cash rewards", 1.0),
-    DISCOVER_CASHBACK("Discover cashback", 1.0),
+    BANK_OF_AMERICA_CASH("Bank of America cash rewards", 1.0, displayAsPercent = true),
+    DISCOVER_CASHBACK("Discover cashback", 1.0, displayAsPercent = true),
     MARRIOTT_BONVOY_POINTS("Marriott Bonvoy points", 0.8),
     HILTON_HONORS_POINTS("Hilton Honors points", 0.5),
     WORLD_OF_HYATT_POINTS("World of Hyatt points", 1.7),
     IHG_ONE_REWARDS_POINTS("IHG One Rewards points", 0.5),
+    DELTA_SKYMILES("Delta SkyMiles", 1.2),
+    UNITED_MILEAGEPLUS("United MileagePlus miles", 1.3),
+    SOUTHWEST_RAPID_REWARDS("Southwest Rapid Rewards points", 1.3),
+    AA_ADVANTAGE("American Airlines AAdvantage miles", 1.4),
+    ALASKA_MILEAGE_PLAN("Alaska Airlines Mileage Plan miles", 1.5),
+    JETBLUE_TRUEBLUE("JetBlue TrueBlue points", 1.3),
+    BILT_POINTS("Bilt Rewards points", 1.8),
+    STORE_REWARDS("Store credit/rewards", 1.0, displayAsPercent = true),
     GENERIC_POINTS("Points", 1.0),
-    ;
-
-    /**
-     * These cents-per-point figures are widely-cited third-party estimates
-     * (in the style of independent points-valuation trackers), NOT a
-     * guaranteed redemption value - actual value depends heavily on how you
-     * redeem. Treated as opinion/estimate input to ranking, not fact.
-     */
 }
 
 data class RewardRate(

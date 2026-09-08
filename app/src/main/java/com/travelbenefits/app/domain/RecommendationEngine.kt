@@ -65,10 +65,6 @@ class RecommendationEngine @Inject constructor() {
 
     private fun formatMultiplier(multiplier: Double, currency: RewardCurrency): String {
         val trimmed = if (multiplier == multiplier.toLong().toDouble()) multiplier.toLong().toString() else multiplier.toString()
-        return if (currency == RewardCurrency.CASH_BACK || currency == RewardCurrency.DISCOVER_CASHBACK || currency == RewardCurrency.BANK_OF_AMERICA_CASH) {
-            "$trimmed%"
-        } else {
-            "${trimmed}x points"
-        }
+        return if (currency.displayAsPercent) "$trimmed%" else "${trimmed}x points"
     }
 }
