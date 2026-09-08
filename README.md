@@ -16,6 +16,16 @@ calls this app makes are:
 
 No backend, no account system, no analytics/tracking SDKs.
 
+## Getting a build without installing Android Studio
+
+Every push to `claude/credit-card-benefits-tracker-i0jp0m` triggers
+`.github/workflows/build-apk.yml`, which builds the debug APK on GitHub's
+servers and publishes it to the repo's **Releases** page under the tag
+`debug-latest` (also re-runnable manually from the Actions tab). Open the
+repo on GitHub → **Releases** → `debug-latest` → download `app-debug.apk`
+→ sideload it per the instructions below. That release is overwritten on
+every push, so it always has the newest build.
+
 ## Important limitations - read this first
 
 - **This project was written without a working Android build environment.**
