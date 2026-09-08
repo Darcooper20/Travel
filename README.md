@@ -2,8 +2,8 @@
 
 A personal, sideload-only Android app for tracking your credit cards' rewards
 and benefits, getting a "which card should I use" recommendation by spending
-category, and pulling hotel loyalty membership numbers/status/points out of
-your Gmail.
+category, and pulling hotel and airline loyalty membership numbers/status/
+points out of your Gmail.
 
 Everything runs and stores data locally on your phone. The only network
 calls this app makes are:
@@ -28,37 +28,38 @@ every push, so it always has the newest build.
 
 ## Important limitations - read this first
 
-- **This project was written without a working Android build environment.**
-  I don't have the Android SDK available in the sandbox I built this in (and
-  the host that distributes it, `dl.google.com`, was blocked by that
-  sandbox's network policy), so I could not compile or run this app to
-  verify it. The code follows standard, well-documented patterns (Jetpack
-  Compose, Room, Hilt, Retrofit, AppAuth) as carefully as I could, but
-  **you should expect to fix at least a few small build errors** the first
-  time you open it in Android Studio - version mismatches between Kotlin/
-  Compose-compiler/KSP-style plugins are the most likely culprit. Android
-  Studio's "Upgrade" quick-fixes for the Gradle/AGP/Kotlin versions in
-  `gradle/libs.versions.toml` are the fastest way through those.
-- **Card benefit data is a hand-curated snapshot, not a live feed.** Annual
-  fees, reward categories, and credits shown for catalog cards reflect
-  public information as understood in early-to-mid 2025 and *will* drift out
-  of date - the app surfaces this warning on the dashboard, but always
-  verify anything that matters (fees, credits, elite status rules) against
-  the issuer's own site before acting on it.
+- **This project was originally written without a working Android build
+  environment** (the sandbox had no Android SDK, and the host that
+  distributes it, `dl.google.com`, was network-blocked there), so the first
+  few commits shipped uncompiled. It's since been verified through GitHub
+  Actions (`.github/workflows/build-apk.yml`) - `./gradlew assembleDebug`
+  now builds cleanly and produces a real, installable APK. What that
+  verifies is that the code *compiles*; it has not been exercised feature-
+  by-feature in a running app/emulator, so treat "it builds" as a lower bar
+  than "every screen behaves exactly as intended" and report anything that
+  looks wrong on-device.
+- **Card benefit data is a hand-curated snapshot (~85 cards), not a live
+  feed.** Most entries reflect public information as understood in
+  September 2026 (a handful of older entries date to early-2025) and *will*
+  drift out of date - the app surfaces this warning on the dashboard, but
+  always verify anything that matters (fees, credits, elite status rules)
+  against the issuer's own site before acting on it. Several entries also
+  flag recent product discontinuations/rebrands/naming confusions
+  surfaced during research - read a card's notes before trusting it.
 - **Point valuations used to rank cards are estimates, not guarantees.**
   Comparing a cash-back card to a transferable-points card requires
   assuming a cents-per-point value (see `RewardCurrency` in
   `CardModels.kt`) - these are the kind of figures independent points
   trackers publish, not a redemption you're guaranteed to get.
 - **The Gmail scan uses an LLM to read email text, not fixed regex rules**,
-  because loyalty program emails have no consistent format. It can miss
-  things or occasionally misread a number - always double check anything
-  it finds before relying on it (e.g. before a trip).
+  because loyalty program emails (hotel and airline) have no consistent
+  format. It can miss things or occasionally misread a number - always
+  double check anything it finds before relying on it (e.g. before a trip).
 
 ## Architecture
 
 - **UI**: Jetpack Compose (Material 3), single-activity, Navigation Compose
-  with a bottom nav bar (Dashboard / Wallet / Best Card / Hotels / Settings).
+  with a bottom nav bar (Dashboard / Wallet / Best Card / Loyalty / Settings).
 - **State**: MVVM - one `ViewModel` per screen, `StateFlow` for UI state.
 - **DI**: Hilt.
 - **Local storage**: Room (wallet cards, loyalty accounts, cached card
@@ -204,7 +205,7 @@ is sent solely to `api.anthropic.com` as the `x-api-key` header.
 app/src/main/java/com/travelbenefits/app/
   auth/            AppAuth-based Gmail OAuth (PKCE)
   data/
-    catalog/       Hand-curated credit card + hotel program data
+    catalog/       Hand-curated credit card + hotel/airline loyalty program data
     local/         Room database, DAOs, entities, EncryptedSharedPreferences
     remote/        Retrofit clients for Anthropic + Gmail
     repository/    Wallet, loyalty, card-lookup, Gmail-scan repositories
