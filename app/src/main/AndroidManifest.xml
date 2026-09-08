@@ -5,6 +5,24 @@
     <!-- Only permission this app needs: talking to the Anthropic and Gmail APIs. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Android 11+ (API 30+) hides other installed apps from package queries
+      by default ("package visibility"). Without declaring this, AppAuth
+      can't detect a browser or Chrome Custom Tabs is installed to open the
+      Google sign-in page, and crashes instead of failing gracefully when
+      "Connect Gmail" is tapped.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TravelBenefitsApp"
         android:allowBackup="false"
