@@ -47,7 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.travelbenefits.app.domain.model.HotelProgram
+import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +75,7 @@ fun HotelsScreen(onOpenSettings: () -> Unit, viewModel: HotelsViewModel = hiltVi
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Hotel loyalty") }) },
+        topBar = { TopAppBar(title = { Text("Loyalty programs") }) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = { viewModel.openAdd() }) {
@@ -88,7 +88,7 @@ fun HotelsScreen(onOpenSettings: () -> Unit, viewModel: HotelsViewModel = hiltVi
                 .fillMaxWidth()
                 .padding(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Scan Gmail for membership numbers & status", style = MaterialTheme.typography.titleMedium)
+                    Text("Scan Gmail for hotel & airline membership numbers and status", style = MaterialTheme.typography.titleMedium)
                     if (!isGmailConnected) {
                         Text("Connect your Gmail account in Settings first.", style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = onOpenSettings) { Text("Go to Settings") }
@@ -210,7 +210,7 @@ private fun EditAccountDialog(
                             .menuAnchor(),
                     )
                     DropdownMenu(expanded = programMenuExpanded, onDismissRequest = { programMenuExpanded = false }) {
-                        HotelProgram.entries.forEach { program ->
+                        LoyaltyProgram.entries.forEach { program ->
                             DropdownMenuItem(
                                 text = { Text(program.displayName) },
                                 onClick = {

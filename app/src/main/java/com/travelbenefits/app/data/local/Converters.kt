@@ -1,15 +1,15 @@
 package com.travelbenefits.app.data.local
 
 import androidx.room.TypeConverter
-import com.travelbenefits.app.domain.model.HotelProgram
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
+import com.travelbenefits.app.domain.model.LoyaltyProgram
 
 class Converters {
     @TypeConverter
-    fun fromHotelProgram(value: HotelProgram): String = value.name
+    fun fromLoyaltyProgram(value: LoyaltyProgram): String = value.name
 
     @TypeConverter
-    fun toHotelProgram(value: String): HotelProgram = HotelProgram.valueOf(value)
+    fun toLoyaltyProgram(value: String): LoyaltyProgram = LoyaltyProgram.valueOf(value)
 
     @TypeConverter
     fun fromLoyaltyAccountSource(value: LoyaltyAccountSource): String = value.name

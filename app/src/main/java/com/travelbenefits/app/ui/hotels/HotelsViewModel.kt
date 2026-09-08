@@ -5,8 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.travelbenefits.app.auth.GmailAuthManager
 import com.travelbenefits.app.data.repository.GmailScanRepository
 import com.travelbenefits.app.data.repository.LoyaltyRepository
-import com.travelbenefits.app.domain.model.HotelProgram
 import com.travelbenefits.app.domain.model.LoyaltyAccount
+import com.travelbenefits.app.domain.model.LoyaltyProgram
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,7 +25,7 @@ sealed class ScanState {
 
 data class EditAccountState(
     val isOpen: Boolean = false,
-    val program: HotelProgram = HotelProgram.MARRIOTT_BONVOY,
+    val program: LoyaltyProgram = LoyaltyProgram.MARRIOTT_BONVOY,
     val membershipNumber: String = "",
     val tier: String = "",
     val pointsBalance: String = "",

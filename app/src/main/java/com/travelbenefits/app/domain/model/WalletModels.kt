@@ -17,7 +17,7 @@ enum class LoyaltyAccountSource { MANUAL, GMAIL_SCAN }
 
 data class LoyaltyAccount(
     val id: Long,
-    val program: HotelProgram,
+    val program: LoyaltyProgram,
     val membershipNumber: String?,
     val tier: String?,
     val pointsBalance: String?,

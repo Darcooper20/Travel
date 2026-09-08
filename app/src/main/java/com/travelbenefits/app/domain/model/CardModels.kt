@@ -50,7 +50,7 @@ enum class RewardCurrency(
     UNITED_MILEAGEPLUS("United MileagePlus miles", 1.3),
     SOUTHWEST_RAPID_REWARDS("Southwest Rapid Rewards points", 1.3),
     AA_ADVANTAGE("American Airlines AAdvantage miles", 1.4),
-    ALASKA_MILEAGE_PLAN("Alaska Airlines Mileage Plan miles", 1.5),
+    ATMOS_REWARDS("Atmos Rewards miles (Alaska/Hawaiian, formerly Mileage Plan)", 1.5),
     JETBLUE_TRUEBLUE("JetBlue TrueBlue points", 1.3),
     BILT_POINTS("Bilt Rewards points", 1.8),
     STORE_REWARDS("Store credit/rewards", 1.0, displayAsPercent = true),
@@ -71,24 +71,43 @@ data class CardCredit(
     val description: String,
 )
 
-enum class HotelProgram(
+enum class LoyaltyProgramKind { HOTEL, AIRLINE }
+
+/**
+ * Every hotel and airline loyalty program this app knows about - used for
+ * three things: manually-tracked loyalty accounts (Hotels/Loyalty screen),
+ * the Gmail scan (via [gmailSenderDomains]), and elite-status perks a
+ * credit card automatically grants (via [CardCatalogEntry.loyaltyBenefits]).
+ * Hotel and airline programs share this one enum (rather than two) because
+ * every other piece of code that touches "a loyalty program" - the account
+ * tracker, the Gmail scanner, the card-benefit model - treats them
+ * identically; [kind] exists only for UI grouping.
+ */
+enum class LoyaltyProgram(
     val displayName: String,
+    val kind: LoyaltyProgramKind,
     /** Sender domains/keywords used to build a Gmail search query for this program. */
     val gmailSenderDomains: List<String>,
 ) {
-    MARRIOTT_BONVOY("Marriott Bonvoy", listOf("email-marriott.com", "marriott.com", "bonvoy.com")),
-    HILTON_HONORS("Hilton Honors", listOf("hiltonhonors.com", "hilton.com")),
-    WORLD_OF_HYATT("World of Hyatt", listOf("e.hyatt.com", "hyatt.com")),
-    IHG_ONE_REWARDS("IHG One Rewards", listOf("email.ihg.com", "ihg.com")),
-    WYNDHAM_REWARDS("Wyndham Rewards", listOf("wyndhamrewards.com", "wyndham.com")),
-    CHOICE_PRIVILEGES("Choice Privileges", listOf("choicehotels.com")),
-    ACCOR_LIVE_LIMITLESS("Accor Live Limitless", listOf("accor.com", "all.accor.com")),
-    BEST_WESTERN_REWARDS("Best Western Rewards", listOf("bestwestern.com")),
-    RADISSON_REWARDS("Radisson Rewards", listOf("radissonhotels.com")),
+    MARRIOTT_BONVOY("Marriott Bonvoy", LoyaltyProgramKind.HOTEL, listOf("email-marriott.com", "marriott.com", "bonvoy.com")),
+    HILTON_HONORS("Hilton Honors", LoyaltyProgramKind.HOTEL, listOf("hiltonhonors.com", "hilton.com")),
+    WORLD_OF_HYATT("World of Hyatt", LoyaltyProgramKind.HOTEL, listOf("e.hyatt.com", "hyatt.com")),
+    IHG_ONE_REWARDS("IHG One Rewards", LoyaltyProgramKind.HOTEL, listOf("email.ihg.com", "ihg.com")),
+    WYNDHAM_REWARDS("Wyndham Rewards", LoyaltyProgramKind.HOTEL, listOf("wyndhamrewards.com", "wyndham.com")),
+    CHOICE_PRIVILEGES("Choice Privileges", LoyaltyProgramKind.HOTEL, listOf("choicehotels.com")),
+    ACCOR_LIVE_LIMITLESS("Accor Live Limitless", LoyaltyProgramKind.HOTEL, listOf("accor.com", "all.accor.com")),
+    BEST_WESTERN_REWARDS("Best Western Rewards", LoyaltyProgramKind.HOTEL, listOf("bestwestern.com")),
+    RADISSON_REWARDS("Radisson Rewards", LoyaltyProgramKind.HOTEL, listOf("radissonhotels.com")),
+    DELTA_SKYMILES("Delta SkyMiles", LoyaltyProgramKind.AIRLINE, listOf("delta.com", "email.delta.com")),
+    UNITED_MILEAGEPLUS("United MileagePlus", LoyaltyProgramKind.AIRLINE, listOf("united.com", "email.united.com")),
+    SOUTHWEST_RAPID_REWARDS("Southwest Rapid Rewards", LoyaltyProgramKind.AIRLINE, listOf("southwest.com", "luv.southwest.com")),
+    AMERICAN_AADVANTAGE("American Airlines AAdvantage", LoyaltyProgramKind.AIRLINE, listOf("aa.com", "email.aa.com")),
+    ATMOS_REWARDS_AIRLINE("Atmos Rewards (Alaska/Hawaiian)", LoyaltyProgramKind.AIRLINE, listOf("alaskaair.com", "atmosrewards.com", "hawaiianairlines.com")),
+    JETBLUE_TRUEBLUE("JetBlue TrueBlue", LoyaltyProgramKind.AIRLINE, listOf("jetblue.com")),
 }
 
-data class HotelBenefit(
-    val program: HotelProgram,
+data class LoyaltyBenefit(
+    val program: LoyaltyProgram,
     /** Short label, e.g. "Gold elite status". */
     val benefit: String,
     val description: String,
@@ -112,9 +131,11 @@ data class CardCatalogEntry(
     val baseMultiplier: Double,
     val categoryRates: List<RewardRate>,
     val credits: List<CardCredit> = emptyList(),
-    val hotelBenefits: List<HotelBenefit> = emptyList(),
+    val loyaltyBenefits: List<LoyaltyBenefit> = emptyList(),
     val dataAsOf: String,
     val notes: String? = null,
+    /** True for a product that's been shut down or closed to new applicants - kept in the catalog for people who already hold it, but never a sensible "use this card" recommendation. */
+    val isDiscontinued: Boolean = false,
 ) {
     fun rateFor(category: SpendingCategory): RewardRate =
         categoryRates.firstOrNull { it.category == category }

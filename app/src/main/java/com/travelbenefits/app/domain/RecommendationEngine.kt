@@ -29,11 +29,19 @@ class RecommendationEngine @Inject constructor() {
                 category = category,
                 multiplier = rate.multiplier,
                 rewardCurrency = card.entry.rewardCurrency,
-                estimatedValueCentsPerDollar = card.entry.estimatedValueCentsPerDollar(category),
-                reason = buildString {
-                    append("Earns ${formatMultiplier(rate.multiplier, card.entry.rewardCurrency)} on ${category.label.lowercase()}")
-                    rate.note?.let { append(" ($it)") }
-                    append(".")
+                estimatedValueCentsPerDollar = if (card.entry.isDiscontinued) {
+                    Double.NEGATIVE_INFINITY
+                } else {
+                    card.entry.estimatedValueCentsPerDollar(category)
+                },
+                reason = if (card.entry.isDiscontinued) {
+                    "This product has been discontinued - it can no longer be used, so it's never a recommendation. See its notes for what replaced it."
+                } else {
+                    buildString {
+                        append("Earns ${formatMultiplier(rate.multiplier, card.entry.rewardCurrency)} on ${category.label.lowercase()}")
+                        rate.note?.let { append(" ($it)") }
+                        append(".")
+                    }
                 },
                 isEstimate = false,
             )
