@@ -102,8 +102,9 @@ self-contained package you can swap out.
 
 ## Sideloading it (no Play Store)
 
-The debug build is signed with your machine's auto-generated debug
-keystore, which is enough to install directly:
+The debug build is signed with the fixed keystore checked into this repo
+(`app/debug.keystore`) rather than an auto-generated one - see the comment
+in `app/build.gradle.kts` for why that matters for CI. Install with:
 
 ```
 adb install app/build/outputs/apk/debug/app-debug.apk
@@ -112,6 +113,13 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 Or copy the APK to your phone and open it with a file manager - Android
 will prompt you to allow installs from that app ("Install unknown apps")
 the first time.
+
+**If you get "App not installed"**, it means a version signed with a
+*different* key is already on your phone (this happened during early CI
+runs, before the fixed keystore existed - each of those was signed with a
+different random key). Uninstall the existing "Travel Benefits" app once,
+then install the new APK - from then on, every build from this repo shares
+the same signature and will update cleanly instead of needing this again.
 
 For a build that keeps a stable signature across reinstalls/updates (so
 Android doesn't treat every reinstall as a brand-new app), generate your

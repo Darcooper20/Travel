@@ -36,14 +36,25 @@ android {
     }
 
     signingConfigs {
-        // Sideloading note: the debug build is signed with the auto-generated
-        // debug keystore, which is enough to install via `adb install` or by
-        // opening the APK on-device. To keep a stable signature across
-        // reinstalls/updates (recommended once you're using this daily),
-        // create your own keystore and point a "release" signing config at
-        // it instead - see README.md.
+        // Uses a fixed, checked-in debug keystore (app/debug.keystore)
+        // instead of AGP's auto-generated one. This matters a lot for CI:
+        // a debug keystore auto-created on an ephemeral GitHub Actions
+        // runner would be a brand-new random key on every single build, so
+        // every APK from a fresh runner would have a different signature -
+        // Android refuses to install an "update" whose signature doesn't
+        // match what's already installed ("App not installed"). A debug
+        // keystore isn't sensitive (it's not used to prove anything, and
+        // Android's own tooling uses the fixed password "android" by
+        // convention), so committing it is the standard fix for
+        // reproducible CI debug builds. For a signature that's yours alone
+        // (recommended once you're using this daily), generate your own
+        // release keystore and point a "release" signing config at it
+        // instead - see README.md.
         getByName("debug") {
-            // Uses the default debug keystore auto-created by AGP.
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
