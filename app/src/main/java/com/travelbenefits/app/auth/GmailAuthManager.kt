@@ -80,9 +80,12 @@ class GmailAuthManager @Inject constructor(
             redirectUri(),
         )
             .setScopes(GmailApi.SCOPE_GMAIL_READONLY)
-            // access_type=offline + prompt=consent so Google actually issues a
-            // refresh token (otherwise you'd need to re-consent every ~1 hour).
-            .setAdditionalParameters(mapOf("access_type" to "offline", "prompt" to "consent"))
+            // prompt=consent (via its own builder method - AppAuth rejects it
+            // as an "additional" parameter since it's a reserved OAuth param)
+            // plus access_type=offline so Google actually issues a refresh
+            // token (otherwise you'd need to re-consent every ~1 hour).
+            .setPrompt("consent")
+            .setAdditionalParameters(mapOf("access_type" to "offline"))
             .build()
 
         val authService = AuthorizationService(context)
