@@ -1,6 +1,7 @@
 package com.travelbenefits.app
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             TravelBenefitsTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppNavHost(onLaunchGmailAuth = { intent -> gmailAuthLauncher.launch(intent) })
+                    AppNavHost(
+                        onLaunchGmailAuth = { intent ->
+                            try {
+                                gmailAuthLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                // Most likely no browser/Custom Tabs provider could handle the
+                                // sign-in intent - surface it instead of letting it crash.
+                                Toast.makeText(
+                                    this,
+                                    "Couldn't open sign-in: ${e.javaClass.simpleName}: ${e.message}",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        },
+                    )
                 }
             }
         }

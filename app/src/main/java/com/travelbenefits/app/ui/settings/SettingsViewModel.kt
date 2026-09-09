@@ -35,6 +35,13 @@ class SettingsViewModel @Inject constructor(
     val isGmailConnected: StateFlow<Boolean> = gmailAuthManager.isSignedIn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    fun dismissAuthError() {
+        _authError.value = null
+    }
+
     fun onAnthropicApiKeyChange(value: String) {
         _uiState.value = _uiState.value.copy(anthropicApiKey = value)
         securePrefs.anthropicApiKey = value.trim().ifBlank { null }
@@ -45,11 +52,16 @@ class SettingsViewModel @Inject constructor(
         securePrefs.googleOAuthClientId = value.trim().ifBlank { null }
     }
 
-    /** Null when no Google OAuth client ID has been configured yet. */
+    /** Null when no Google OAuth client ID has been configured yet, or the intent couldn't be built. */
     fun buildGmailAuthIntent(): Intent? {
         val clientId = _uiState.value.googleClientId.trim()
         if (clientId.isBlank()) return null
-        return gmailAuthManager.createAuthIntent(clientId)
+        return try {
+            gmailAuthManager.createAuthIntent(clientId)
+        } catch (e: Exception) {
+            _authError.value = "Couldn't start Google sign-in: ${e.javaClass.simpleName}: ${e.message}"
+            null
+        }
     }
 
     fun disconnectGmail() {

@@ -16,11 +16,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
@@ -35,8 +40,20 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val isGmailConnected by viewModel.isGmailConnected.collectAsState()
+    val authError by viewModel.authError.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }) { padding ->
+    LaunchedEffect(authError) {
+        authError?.let {
+            snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long)
+            viewModel.dismissAuthError()
+        }
+    }
+
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Settings") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
