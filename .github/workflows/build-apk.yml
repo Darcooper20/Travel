@@ -1,13 +1,15 @@
 name: Build Android APK
 
-# Builds the debug APK on every push to this branch (or on-demand via the
+# Builds the debug APK on every push to these branches (or on-demand via the
 # "Run workflow" button) and publishes it to a GitHub Release with a stable
 # download link - the GitHub-native equivalent of a Netlify deploy preview,
 # since Netlify itself has no Android SDK/build support.
 
 on:
   push:
-    branches: ["claude/credit-card-benefits-tracker-i0jp0m"]
+    branches:
+      - "claude/credit-card-benefits-tracker-i0jp0m"
+      - "claude/travel-rewards-aggregator-rbhc41"
   workflow_dispatch:
 
 permissions:

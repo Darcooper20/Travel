@@ -1,15 +1,49 @@
-# Travel Benefits
+# Travel Benefits - loyalty wallet
 
-A personal, sideload-only Android app for tracking your credit cards' rewards
-and benefits, getting a "which card should I use" recommendation by spending
-category, and pulling hotel and airline loyalty membership numbers/status/
-points out of your Gmail.
+A personal, sideload-only Android app in the spirit of Navan Edge / AwardWallet:
+one place for your hotel and airline loyalty programs, the credit cards you
+carry, and the trips you've booked - fed automatically by monitoring your
+Gmail - with tools to squeeze the most out of your points.
+
+## What it does
+
+- **Loyalty wallet** - every program's membership number, status, points
+  balance, estimated dollar value, progress to the next elite tier, and when
+  the points will expire if you go inactive. Balance history per program.
+- **Email monitor** - reads Gmail (read-only) incrementally, in the
+  background on a schedule you choose (WorkManager) or on demand, and uses
+  Claude to turn loyalty statements, booking confirmations and "your points
+  are expiring" notices into structured records. New memberships, balance
+  and status changes, new trips and expiry warnings land in an activity feed
+  and, optionally, a notification.
+- **Trips** - flights, hotels, cars and rail pulled from confirmation emails
+  (or added by hand), with an "is this earning?" check: if a booking maps to
+  a program you belong to but the confirmation doesn't show your member
+  number, the app flags it before check-in.
+- **Needs attention** - expiring points, "3 nights to Gold" nudges, upcoming
+  trips, bookings missing a loyalty number, member numbers you haven't saved.
+- **Maximize points**
+  - *Earn*: best card for a spending category, either by overall estimated
+    value or by "most points into program X" (co-brand cards directly, bank
+    points at their transfer ratio), plus any elite status your cards grant.
+  - *Redeem*: cash-vs-points calculator that accounts for the points and
+    card rewards a paid booking would have earned.
+  - *Transfer*: which of your cards' currencies move into a program, at what
+    ratio, and whether that's a good use of them.
+  - *Ask*: an AI advisor (Claude + web search) that takes your actual
+    balances and cards and researches the best redemption for a trip you
+    describe - and tells you where to confirm live availability, because no
+    program exposes award inventory to third-party apps.
+- **Cards** - the original wallet: a curated catalog of ~85 US cards, live
+  lookups for anything else, and card-granted hotel/airline status.
 
 Everything runs and stores data locally on your phone. The only network
 calls this app makes are:
 
-1. To **api.anthropic.com** - to look up benefits for a card that isn't in
-   the built-in catalog, and to read loyalty details out of scanned emails.
+1. To **api.anthropic.com** - to read loyalty/trip details out of scanned
+   emails, to look up cards not in the built-in catalog, and for the points
+   advisor. Only balances, tiers and card names go to the advisor; never
+   membership numbers or email text.
 2. To **Google's OAuth and Gmail APIs** - only after you explicitly connect
    Gmail, using a **read-only** scope (`gmail.readonly`). The app never
    sends, deletes, labels, or modifies anything in your inbox.
@@ -18,7 +52,7 @@ No backend, no account system, no analytics/tracking SDKs.
 
 ## Getting a build without installing Android Studio
 
-Every push to `claude/credit-card-benefits-tracker-i0jp0m` triggers
+Every push to the branches listed in `.github/workflows/build-apk.yml` triggers
 `.github/workflows/build-apk.yml`, which builds the debug APK on GitHub's
 servers and publishes it to the repo's **Releases** page under the tag
 `debug-latest` (also re-runnable manually from the Actions tab). Open the
@@ -55,14 +89,34 @@ every push, so it always has the newest build.
   because loyalty program emails (hotel and airline) have no consistent
   format. It can miss things or occasionally misread a number - always
   double check anything it finds before relying on it (e.g. before a trip).
+  Every email it reads costs an API call; Settings has a per-sync cap
+  (default 60 emails) and the processed-email ledger means nothing is read
+  twice.
+- **Tier ladders, expiry rules, transfer ratios and point values are a
+  curated snapshot too** (`data/catalog/LoyaltyProgramCatalog.kt` and
+  `TransferPartnerCatalog.kt`, each entry dated). Where a threshold couldn't
+  be pinned down it's left blank rather than guessed (e.g. Atmos Rewards,
+  Radisson Rewards). Programs change these every year or two.
+- **Award search is not live.** No hotel or airline program offers a public
+  award-availability API to personal apps, so "Ask" researches with web
+  search and the app deep-links to each program's own award search to
+  confirm.
+- **Upgrading from the previous version** migrates the local database
+  (v1 -> v2) in place; if anything looks off, clearing the app's storage
+  and re-syncing rebuilds it from Gmail.
 
 ## Architecture
 
 - **UI**: Jetpack Compose (Material 3), single-activity, Navigation Compose
-  with a bottom nav bar (Dashboard / Wallet / Best Card / Loyalty / Settings).
+  with a bottom nav bar (Home / Loyalty / Trips / Maximize / Cards) and a
+  Settings screen.
+- **Background sync**: WorkManager periodic work (`work/EmailSyncWorker`)
+  with a Hilt-injected worker; interval, notifications, lookback window and
+  per-sync email cap are all in Settings.
 - **State**: MVVM - one `ViewModel` per screen, `StateFlow` for UI state.
 - **DI**: Hilt.
-- **Local storage**: Room (wallet cards, loyalty accounts, cached card
+- **Local storage**: Room v2 (wallet cards, loyalty accounts, balance
+  snapshots, trips, activity feed, processed-email ledger, cached card
   lookups) + `EncryptedSharedPreferences` (Anthropic API key, Google OAuth
   client ID, Gmail OAuth tokens) backed by the Android Keystore.
 - **Networking**: Retrofit + OkHttp + kotlinx.serialization, talking
@@ -207,17 +261,31 @@ changes, a rebuild with the matching `appAuthRedirectScheme`.
 This key is stored encrypted on-device only (Android Keystore-backed) and
 is sent solely to `api.anthropic.com` as the `x-api-key` header.
 
+## Using the email monitor
+
+1. Set up the Anthropic key and Gmail connection (below).
+2. On **Home**, tap **Sync now**. The first run reads up to a year of mail
+   from known hotel/airline/OTA senders (capped per sync); later runs only
+   read what's new.
+3. In **Settings → Email monitor**, turn on **Background sync**, pick an
+   interval, and allow notifications if you want a heads-up when a balance
+   changes, a trip appears or points are about to expire.
+4. Anything the scan gets wrong can be corrected by tapping the account or
+   trip; manual edits win over later scans of older emails.
+
 ## Project layout
 
 ```
 app/src/main/java/com/travelbenefits/app/
   auth/            AppAuth-based Gmail OAuth (PKCE)
   data/
-    catalog/       Hand-curated credit card + hotel/airline loyalty program data
-    local/         Room database, DAOs, entities, EncryptedSharedPreferences
+    catalog/       Hand-curated card catalog, loyalty program profiles, transfer partners
+    local/         Room database (+ migrations), DAOs, entities, prefs
     remote/        Retrofit clients for Anthropic + Gmail
-    repository/    Wallet, loyalty, card-lookup, Gmail-scan repositories
+    repository/    Email monitor, loyalty, trips, activity, advisor, wallet, card lookup
   di/              Hilt modules
-  domain/          Domain models + the recommendation engine
-  ui/              Compose screens, one package per screen, + navigation/theme
+  domain/          Domain models, loyalty insights (tiers/expiry/alerts), points optimizer
+  notifications/   Notification channel + sync-result notifications
+  work/            WorkManager worker + scheduler for background sync
+  ui/              Compose screens (dashboard, loyalty, trips, optimize, wallet, settings)
 ```

@@ -19,6 +19,14 @@ data class GmailMessageDetail(
     val id: String,
     val snippet: String? = null,
     val payload: GmailMessagePart? = null,
+    /** Epoch millis the message was received, as a decimal string (Gmail returns int64 as a string). */
+    val internalDate: String? = null,
+)
+
+@Serializable
+data class GmailProfile(
+    val emailAddress: String? = null,
+    val messagesTotal: Long? = null,
 )
 
 @Serializable

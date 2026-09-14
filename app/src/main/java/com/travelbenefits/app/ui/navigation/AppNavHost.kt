@@ -13,18 +13,27 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.compose.composable
 import com.travelbenefits.app.ui.dashboard.DashboardScreen
-import com.travelbenefits.app.ui.hotels.HotelsScreen
-import com.travelbenefits.app.ui.recommend.RecommendScreen
+import com.travelbenefits.app.ui.loyalty.LoyaltyScreen
+import com.travelbenefits.app.ui.optimize.OptimizeScreen
 import com.travelbenefits.app.ui.settings.SettingsScreen
+import com.travelbenefits.app.ui.trips.TripsScreen
 import com.travelbenefits.app.ui.wallet.WalletScreen
 
 @Composable
 fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
     val navController = rememberNavController()
+
+    fun navigateTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -34,13 +43,7 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
                 Screen.bottomBarScreens.forEach { screen ->
                     NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onClick = { navigateTab(screen.route) },
                         icon = { Icon(screen.icon, contentDescription = screen.label) },
                         label = { Text(screen.label) },
                     )
@@ -50,23 +53,26 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Dashboard.route,
+            startDestination = Screen.Home.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Screen.Dashboard.route) {
+            composable(Screen.Home.route) {
                 DashboardScreen(
-                    onOpenWallet = { navController.navigate(Screen.Wallet.route) },
-                    onOpenRecommend = { navController.navigate(Screen.Recommend.route) },
-                    onOpenHotels = { navController.navigate(Screen.Hotels.route) },
+                    onOpenLoyalty = { navigateTab(Screen.Loyalty.route) },
+                    onOpenTrips = { navigateTab(Screen.Trips.route) },
+                    onOpenOptimize = { navigateTab(Screen.Optimize.route) },
+                    onOpenWallet = { navigateTab(Screen.Wallet.route) },
+                    onOpenSettings = { navController.navigate(Screen.Settings.route) },
                 )
             }
-            composable(Screen.Wallet.route) { WalletScreen() }
-            composable(Screen.Recommend.route) { RecommendScreen() }
-            composable(Screen.Hotels.route) {
-                HotelsScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })
+            composable(Screen.Loyalty.route) {
+                LoyaltyScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })
             }
+            composable(Screen.Trips.route) { TripsScreen() }
+            composable(Screen.Optimize.route) { OptimizeScreen() }
+            composable(Screen.Wallet.route) { WalletScreen() }
             composable(Screen.Settings.route) {
-                SettingsScreen(onLaunchGmailAuth = onLaunchGmailAuth)
+                SettingsScreen(onLaunchGmailAuth = onLaunchGmailAuth, onBack = { navController.popBackStack() })
             }
         }
     }

@@ -1,0 +1,317 @@
+package com.travelbenefits.app.data.catalog
+
+import com.travelbenefits.app.domain.model.AwardPriceBand
+import com.travelbenefits.app.domain.model.ExpirationPolicy
+import com.travelbenefits.app.domain.model.LoyaltyProgram
+import com.travelbenefits.app.domain.model.ProgramProfile
+import com.travelbenefits.app.domain.model.QualifyingMetric
+import com.travelbenefits.app.domain.model.TierLevel
+
+/**
+ * Hand-curated profiles for every [LoyaltyProgram]: elite ladders,
+ * expiration rules, earning rates, rough award prices and links.
+ *
+ * ACCURACY NOTE: programs revise these rules every year or two (several did
+ * in 2024-2026). Everything here is "as understood on [ProgramProfile.dataAsOf]"
+ * and is surfaced in the UI with that caveat. Where a threshold couldn't be
+ * pinned down with confidence it is left null rather than guessed, so the
+ * app shows the tier name without a progress bar instead of a wrong number.
+ */
+object LoyaltyProgramCatalog {
+
+    private const val AS_OF = "September 2026 snapshot - verify with the program before relying on it"
+
+    val profiles: Map<LoyaltyProgram, ProgramProfile> = listOf(
+        ProgramProfile(
+            program = LoyaltyProgram.MARRIOTT_BONVOY,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Silver", 10, perks = "10% bonus points, late checkout when available"),
+                TierLevel("Gold", 25, perks = "25% bonus points, 2pm late checkout, room upgrades when available"),
+                TierLevel("Platinum", 50, perks = "50% bonus points, lounge access, 4pm checkout, welcome gift choice"),
+                TierLevel("Titanium", 75, perks = "75% bonus points, plus Platinum perks and annual choice benefit"),
+                TierLevel("Ambassador", 100, altQualification = "plus \$23,000 annual qualifying spend", perks = "Ambassador service, Your24 check-in"),
+            ),
+            expiration = ExpirationPolicy(24, "Points expire after 24 months with no qualifying activity (earning or redeeming resets the clock)."),
+            estValueCentsPerPoint = 0.8,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Silver" to 0.10, "Gold" to 0.25, "Platinum" to 0.50, "Titanium" to 0.75, "Ambassador" to 0.75),
+            awardBand = AwardPriceBand(10_000, 35_000, 100_000, "Dynamic pricing; budget brands from ~10k, luxury/peak 100k+."),
+            accountUrl = "https://www.marriott.com/loyalty/myAccount/default.mi",
+            awardSearchUrl = "https://www.marriott.com/search/default.mi?useRewardsPoints=true",
+            brandKeywords = listOf("marriott", "bonvoy", "sheraton", "westin", "courtyard", "ritz-carlton", "ritz carlton", "st. regis", "st regis", "w hotel", "residence inn", "fairfield", "springhill", "aloft", "moxy", "le meridien", "le méridien", "jw marriott", "autograph collection", "tribute portfolio", "renaissance", "four points", "element", "delta hotels", "gaylord", "edition", "luxury collection", "towneplace", "ac hotel", "protea", "design hotels", "city express"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.HILTON_HONORS,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Silver", 10, altQualification = "or 4 stays", perks = "20% bonus points, 5th standard reward night free"),
+                TierLevel("Gold", 40, altQualification = "or 20 stays", perks = "80% bonus points, daily F&B credit (US) or breakfast, space-available upgrades"),
+                TierLevel("Diamond", 60, altQualification = "or 30 stays", perks = "100% bonus points, executive lounge access, premium wifi"),
+            ),
+            expiration = ExpirationPolicy(24, "Points expire after 24 months of inactivity; any earn or redeem resets the clock."),
+            estValueCentsPerPoint = 0.5,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Silver" to 0.20, "Gold" to 0.80, "Diamond" to 1.00),
+            awardBand = AwardPriceBand(10_000, 50_000, 150_000, "Dynamic; 5th night free on standard awards for elites."),
+            accountUrl = "https://www.hilton.com/en/hilton-honors/",
+            awardSearchUrl = "https://www.hilton.com/en/book/reservation/rooms/?redeemPts=true",
+            brandKeywords = listOf("hilton", "honors", "hampton", "doubletree", "embassy suites", "homewood", "home2", "tru by hilton", "waldorf", "conrad", "canopy", "curio", "tapestry", "lxr", "signia", "motto", "tempo", "spark by hilton", "graduate hotels", "nomad"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.WORLD_OF_HYATT,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Discoverist", 10, altQualification = "or 25,000 base points", perks = "10% bonus points, 2pm checkout, premium wifi"),
+                TierLevel("Explorist", 30, altQualification = "or 50,000 base points", perks = "20% bonus points, room upgrades, 4 Club lounge awards"),
+                TierLevel("Globalist", 60, altQualification = "or 100,000 base points", perks = "30% bonus points, club access, free breakfast, suite upgrades, waived resort fees"),
+            ),
+            expiration = ExpirationPolicy(24, "Points expire after 24 months without earning or redeeming activity."),
+            estValueCentsPerPoint = 1.7,
+            basePointsPerDollar = 5.0,
+            eliteBonusByTier = mapOf("Discoverist" to 0.10, "Explorist" to 0.20, "Globalist" to 0.30),
+            awardBand = AwardPriceBand(3_500, 15_000, 45_000, "Category-based chart with off-peak/standard/peak pricing."),
+            accountUrl = "https://world.hyatt.com/content/gp/en/account.html",
+            awardSearchUrl = "https://www.hyatt.com/search/hotels/?rate=Standard&rateFilter=woh",
+            brandKeywords = listOf("hyatt", "andaz", "grand hyatt", "park hyatt", "hyatt regency", "hyatt place", "hyatt house", "thompson", "alila", "miraval", "caption by hyatt", "destination by hyatt", "jdv", "unbound collection", "hyatt centric", "hyatt ziva", "hyatt zilara", "dream hotels", "mr & mrs smith"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.IHG_ONE_REWARDS,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Silver", 10, perks = "20% bonus points"),
+                TierLevel("Gold", 20, perks = "40% bonus points, welcome points or amenity"),
+                TierLevel("Platinum", 40, perks = "60% bonus points, space-available upgrades, guaranteed 2pm checkout"),
+                TierLevel("Diamond", 70, perks = "100% bonus points, complimentary breakfast at most brands, lounge access"),
+            ),
+            expiration = ExpirationPolicy(12, "Points expire after 12 months of inactivity for members without elite status; elite members' points don't expire while status is held."),
+            estValueCentsPerPoint = 0.5,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Silver" to 0.20, "Gold" to 0.40, "Platinum" to 0.60, "Diamond" to 1.00),
+            awardBand = AwardPriceBand(10_000, 35_000, 100_000, "Dynamic; 4th night free on 4+ night awards for IHG credit cardholders."),
+            accountUrl = "https://www.ihg.com/onerewards/content/us/en/home",
+            awardSearchUrl = "https://www.ihg.com/hotels/us/en/reservation?rateCode=IVANI",
+            brandKeywords = listOf("ihg", "intercontinental", "holiday inn", "crowne plaza", "kimpton", "hotel indigo", "staybridge", "candlewood", "even hotels", "avid", "voco", "six senses", "regent", "vignette", "atwell", "garner", "hualuxe"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.WYNDHAM_REWARDS,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Gold", 7, perks = "Late checkout, preferred rooms"),
+                TierLevel("Platinum", 16, perks = "10% bonus points, early check-in"),
+                TierLevel("Diamond", 40, perks = "15% bonus points, suite upgrades, welcome amenity"),
+            ),
+            expiration = ExpirationPolicy(18, "Points expire after 18 months of inactivity, and in any case 4 years after they were earned."),
+            estValueCentsPerPoint = 1.0,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Platinum" to 0.10, "Diamond" to 0.15),
+            awardBand = AwardPriceBand(7_500, 15_000, 30_000, "Fixed tiers of 7,500 / 15,000 / 30,000 points per night (Vacasa/Vacation rentals differ)."),
+            accountUrl = "https://www.wyndhamhotels.com/wyndham-rewards/account",
+            awardSearchUrl = "https://www.wyndhamhotels.com/wyndham-rewards/redeem",
+            brandKeywords = listOf("wyndham", "la quinta", "ramada", "days inn", "super 8", "microtel", "wingate", "baymont", "travelodge", "howard johnson", "hawthorn", "americinn", "trademark", "dolce", "registry collection", "vienna house", "echo suites"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.CHOICE_PRIVILEGES,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Gold", 10, perks = "10% bonus points"),
+                TierLevel("Platinum", 20, perks = "25% bonus points, dedicated line"),
+                TierLevel("Diamond", 40, perks = "50% bonus points, room upgrades, welcome gift"),
+            ),
+            expiration = ExpirationPolicy(18, "Points expire after 18 months without qualifying activity."),
+            estValueCentsPerPoint = 0.6,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Gold" to 0.10, "Platinum" to 0.25, "Diamond" to 0.50),
+            awardBand = AwardPriceBand(8_000, 16_000, 35_000, "Mostly 8k-35k per night in the US; Europe/upscale brands higher."),
+            accountUrl = "https://www.choicehotels.com/choice-privileges",
+            awardSearchUrl = "https://www.choicehotels.com/choice-privileges/redeem",
+            brandKeywords = listOf("choice hotels", "choice privileges", "comfort inn", "comfort suites", "quality inn", "sleep inn", "clarion", "cambria", "ascend", "mainstay", "suburban", "woodspring", "econo lodge", "rodeway", "radisson blu", "radisson red", "park inn", "country inn"),
+            dataAsOf = AS_OF,
+            notes = "Radisson Hotels Americas was folded into Choice Privileges in 2022-23, so US/Canada Radisson stays typically credit here rather than to Radisson Rewards.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.ACCOR_LIVE_LIMITLESS,
+            qualifyingMetric = QualifyingMetric.STATUS_POINTS,
+            tiers = listOf(
+                TierLevel("Silver", 2_000, altQualification = "or 10 nights", perks = "Welcome drink, late checkout"),
+                TierLevel("Gold", 7_000, altQualification = "or 30 nights", perks = "Room upgrade, welcome drink, early check-in"),
+                TierLevel("Platinum", 14_000, altQualification = "or 60 nights", perks = "Lounge access, suite upgrades where available"),
+                TierLevel("Diamond", 26_000, perks = "Free breakfast on weekends, dining perks"),
+            ),
+            expiration = ExpirationPolicy(12, "Reward points expire after 12 months without earning activity."),
+            estValueCentsPerPoint = 2.2,
+            basePointsPerDollar = 2.5,
+            eliteBonusByTier = mapOf("Silver" to 0.25, "Gold" to 0.50, "Platinum" to 0.75, "Diamond" to 1.00),
+            awardBand = AwardPriceBand(2_000, 4_000, 10_000, "Fixed value: every 2,000 points = EUR 40 off a booking - no award chart."),
+            accountUrl = "https://all.accor.com/",
+            awardSearchUrl = "https://all.accor.com/",
+            brandKeywords = listOf("accor", "sofitel", "novotel", "ibis", "mercure", "pullman", "fairmont", "raffles", "swissôtel", "swissotel", "mgallery", "mövenpick", "movenpick", "banyan tree", "rixos", "sls", "mondrian", "delano", "hyde", "the hoxton", "ennismore", "orient express"),
+            dataAsOf = AS_OF,
+            notes = "Earning is spend-based in euros (points per EUR 10), so basePointsPerDollar is a rough USD conversion.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.BEST_WESTERN_REWARDS,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Gold", 10, perks = "10% bonus points"),
+                TierLevel("Platinum", 15, perks = "15% bonus points"),
+                TierLevel("Diamond", 30, perks = "30% bonus points, room upgrades"),
+                TierLevel("Diamond Select", 50, perks = "50% bonus points"),
+            ),
+            expiration = ExpirationPolicy(null, "Points don't expire."),
+            estValueCentsPerPoint = 0.6,
+            basePointsPerDollar = 10.0,
+            eliteBonusByTier = mapOf("Gold" to 0.10, "Platinum" to 0.15, "Diamond" to 0.30, "Diamond Select" to 0.50),
+            awardBand = AwardPriceBand(8_000, 20_000, 36_000, "Property-based pricing, roughly 8k-36k per night."),
+            accountUrl = "https://www.bestwestern.com/en_US/rewards.html",
+            awardSearchUrl = "https://www.bestwestern.com/en_US/rewards/redeem.html",
+            brandKeywords = listOf("best western", "bw premier", "surestay", "glō", "glo hotel", "vīb", "aiden", "sadie", "executive residency", "worldhotels"),
+            dataAsOf = AS_OF,
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.RADISSON_REWARDS,
+            qualifyingMetric = QualifyingMetric.NIGHTS,
+            tiers = listOf(
+                TierLevel("Premium", null),
+                TierLevel("VIP", null),
+            ),
+            expiration = ExpirationPolicy(24, "Points expire after 24 months of inactivity (rule not re-verified recently)."),
+            estValueCentsPerPoint = 0.3,
+            basePointsPerDollar = 20.0,
+            accountUrl = "https://www.radissonhotels.com/en-us/rewards",
+            awardSearchUrl = "https://www.radissonhotels.com/en-us/rewards/redeem",
+            brandKeywords = listOf("radisson collection", "radisson individuals", "art'otel", "prizeotel"),
+            dataAsOf = AS_OF,
+            notes = "Applies to Radisson Rewards outside the Americas only; US/Canada Radisson stays credit to Choice Privileges. Tier thresholds intentionally left blank - verify at radissonhotels.com.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.DELTA_SKYMILES,
+            qualifyingMetric = QualifyingMetric.QUALIFYING_DOLLARS,
+            tiers = listOf(
+                TierLevel("Silver Medallion", 5_000, perks = "Unlimited complimentary upgrades (lowest priority), free checked bag, priority boarding"),
+                TierLevel("Gold Medallion", 10_000, perks = "Higher upgrade priority, Sky Priority, waived same-day change fees"),
+                TierLevel("Platinum Medallion", 15_000, perks = "Choice Benefits, regional upgrade certificates"),
+                TierLevel("Diamond Medallion", 28_000, perks = "Top priority, global upgrade certificates, Choice Benefits"),
+            ),
+            expiration = ExpirationPolicy(null, "SkyMiles never expire."),
+            estValueCentsPerPoint = 1.2,
+            basePointsPerDollar = 5.0,
+            eliteBonusByTier = mapOf("Silver Medallion" to 0.40, "Gold Medallion" to 0.60, "Platinum Medallion" to 0.80, "Diamond Medallion" to 1.20),
+            accountUrl = "https://www.delta.com/us/en/skymiles/overview",
+            awardSearchUrl = "https://www.delta.com/flightsearch/book-a-flight?awardTravel=true",
+            brandKeywords = listOf("delta air lines", "delta airlines", "delta.com", "skymiles", "delta flight"),
+            dataAsOf = AS_OF,
+            notes = "Status is Medallion Qualification Dollars (MQDs) only since 2024; the MQD thresholds above are the widely reported 2025 program-year figures.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.UNITED_MILEAGEPLUS,
+            qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
+            tiers = listOf(
+                TierLevel("Premier Silver", 6_000, altQualification = "or 5,000 PQP + 15 PQF", perks = "Complimentary Economy Plus at check-in, free checked bag"),
+                TierLevel("Premier Gold", 12_000, altQualification = "or 10,000 PQP + 30 PQF", perks = "Star Alliance Gold, lounge access on international itineraries"),
+                TierLevel("Premier Platinum", 18_000, altQualification = "or 15,000 PQP + 45 PQF", perks = "PlusPoints upgrades, higher upgrade priority"),
+                TierLevel("Premier 1K", 28_000, altQualification = "or 22,000 PQP + 60 PQF", perks = "Top-tier upgrades and service"),
+            ),
+            expiration = ExpirationPolicy(null, "MileagePlus miles don't expire."),
+            estValueCentsPerPoint = 1.3,
+            basePointsPerDollar = 5.0,
+            eliteBonusByTier = mapOf("Premier Silver" to 0.40, "Premier Gold" to 0.60, "Premier Platinum" to 0.80, "Premier 1K" to 1.20),
+            accountUrl = "https://www.united.com/en/us/account",
+            awardSearchUrl = "https://www.united.com/en/us/book-flight/united-reservations?awardTravel=true",
+            brandKeywords = listOf("united airlines", "united.com", "mileageplus", "united flight"),
+            dataAsOf = AS_OF,
+            notes = "Thresholds are Premier Qualifying Points (PQP) for the PQP-only path; PQP+PQF combinations shown as the alternate. United raised these for 2026 - double-check united.com.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.SOUTHWEST_RAPID_REWARDS,
+            qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
+            tiers = listOf(
+                TierLevel("A-List", 35_000, altQualification = "or 20 qualifying one-way flights", perks = "Priority boarding, 25% earning bonus, same-day standby"),
+                TierLevel("A-List Preferred", 70_000, altQualification = "or 40 qualifying one-way flights", perks = "100% earning bonus, free inflight wifi"),
+            ),
+            expiration = ExpirationPolicy(null, "Rapid Rewards points don't expire."),
+            estValueCentsPerPoint = 1.3,
+            basePointsPerDollar = 6.0,
+            eliteBonusByTier = mapOf("A-List" to 0.25, "A-List Preferred" to 1.00),
+            accountUrl = "https://www.southwest.com/myaccount/",
+            awardSearchUrl = "https://www.southwest.com/air/booking/?fareType=POINTS",
+            brandKeywords = listOf("southwest airlines", "southwest.com", "rapid rewards", "southwest flight"),
+            dataAsOf = AS_OF,
+            notes = "Southwest overhauled fares, bags and boarding in 2025; earning rates per fare bucket changed - verify before counting on points.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.AMERICAN_AADVANTAGE,
+            qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
+            tiers = listOf(
+                TierLevel("Gold", 40_000, perks = "40% mileage bonus, free checked bag, complimentary upgrades"),
+                TierLevel("Platinum", 75_000, perks = "60% bonus, oneworld Sapphire, lounge access on international itineraries"),
+                TierLevel("Platinum Pro", 125_000, perks = "80% bonus, higher upgrade priority"),
+                TierLevel("Executive Platinum", 200_000, perks = "120% bonus, systemwide upgrades, oneworld Emerald"),
+            ),
+            expiration = ExpirationPolicy(24, "Miles expire after 24 months of inactivity (members under 65); any earn or redeem resets the clock."),
+            estValueCentsPerPoint = 1.4,
+            basePointsPerDollar = 5.0,
+            eliteBonusByTier = mapOf("Gold" to 0.40, "Platinum" to 0.60, "Platinum Pro" to 0.80, "Executive Platinum" to 1.20),
+            accountUrl = "https://www.aa.com/aadvantage-program/profile/account-summary",
+            awardSearchUrl = "https://www.aa.com/booking/find-flights?redeemMiles=true",
+            brandKeywords = listOf("american airlines", "aa.com", "aadvantage", "american flight"),
+            dataAsOf = AS_OF,
+            notes = "Status is measured in Loyalty Points (earned from flights, credit cards and partners) per qualification year.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.ATMOS_REWARDS_AIRLINE,
+            qualifyingMetric = QualifyingMetric.STATUS_POINTS,
+            tiers = listOf(
+                TierLevel("Silver", null),
+                TierLevel("Gold", null),
+                TierLevel("Platinum", null),
+                TierLevel("Titanium", null),
+            ),
+            expiration = ExpirationPolicy(null, "Miles don't expire on inactivity (post-2024 policy); verify at atmosrewards.com."),
+            estValueCentsPerPoint = 1.5,
+            basePointsPerDollar = null,
+            accountUrl = "https://www.alaskaair.com/account/overview",
+            awardSearchUrl = "https://www.alaskaair.com/planbook?awardType=MilesOnly",
+            brandKeywords = listOf("alaska airlines", "alaskaair", "hawaiian airlines", "hawaiianairlines", "atmos rewards", "mileage plan", "hawaiianmiles"),
+            dataAsOf = AS_OF,
+            notes = "Atmos Rewards replaced Mileage Plan / HawaiianMiles in 2025 and its status-point thresholds are still settling, so they're intentionally left blank rather than guessed.",
+        ),
+        ProgramProfile(
+            program = LoyaltyProgram.JETBLUE_TRUEBLUE,
+            qualifyingMetric = QualifyingMetric.TILES,
+            tiers = listOf(
+                TierLevel("Mosaic 1", 50, perks = "Free checked bags, early boarding, Even More Space at check-in"),
+                TierLevel("Mosaic 2", 100, perks = "Adds a Mosaic perk choice"),
+                TierLevel("Mosaic 3", 150, perks = "Adds Mint upgrade certificates"),
+                TierLevel("Mosaic 4", 250, perks = "Top tier: more Mint certificates and perks"),
+            ),
+            expiration = ExpirationPolicy(null, "TrueBlue points don't expire."),
+            estValueCentsPerPoint = 1.3,
+            basePointsPerDollar = 3.0,
+            accountUrl = "https://trueblue.jetblue.com/",
+            awardSearchUrl = "https://www.jetblue.com/booking/flights?usePoints=true",
+            brandKeywords = listOf("jetblue", "trueblue"),
+            dataAsOf = AS_OF,
+            notes = "Roughly 1 tile per \$100 spent with JetBlue (flights, vacations, co-brand card spend).",
+        ),
+    ).associateBy { it.program }
+
+    fun profileFor(program: LoyaltyProgram): ProgramProfile =
+        profiles[program] ?: error("No profile for ${program.name}")
+
+    /** Program whose brands match a free-text provider/hotel name, if any. */
+    fun programForProvider(providerText: String?): LoyaltyProgram? {
+        if (providerText.isNullOrBlank()) return null
+        val haystack = providerText.lowercase()
+        return profiles.values
+            .filter { profile -> profile.brandKeywords.any { haystack.contains(it) } }
+            // Longest keyword wins so "Hyatt Place" beats a stray "place" style false positive elsewhere.
+            .maxByOrNull { profile -> profile.brandKeywords.filter { haystack.contains(it) }.maxOf { it.length } }
+            ?.program
+    }
+}

@@ -20,11 +20,44 @@ data class LoyaltyAccount(
     val program: LoyaltyProgram,
     val membershipNumber: String?,
     val tier: String?,
+    /** Balance as written in the source ("42,500 points") - kept for display when [pointsNumeric] couldn't be parsed. */
     val pointsBalance: String?,
     val source: LoyaltyAccountSource,
     val sourceEmailSubject: String?,
     val lastUpdated: Long,
-)
+    /** Parsed numeric balance, when known. */
+    val pointsNumeric: Long? = null,
+    /** Epoch millis when the points are due to expire (from an email warning or the program's inactivity rule). */
+    val pointsExpireAt: Long? = null,
+    /** Year-to-date qualifying activity toward the next tier, in the program's own metric (nights, MQDs, Loyalty Points...). */
+    val qualifyingProgress: Int? = null,
+    /** Epoch millis of the last qualifying activity seen - the anchor for inactivity-based expiration. */
+    val lastActivityAt: Long? = null,
+) {
+    /** Best available balance, preferring the parsed number. */
+    val balanceLabel: String?
+        get() = pointsNumeric?.let { formatPoints(it) } ?: pointsBalance
+
+    companion object {
+        fun formatPoints(points: Long): String = String.format("%,d", points)
+
+        /** "42,500 points" / "18.2k miles" / "1,200" -> 42500 / 18200 / 1200. Null when nothing numeric is there. */
+        fun parsePoints(raw: String?): Long? {
+            if (raw.isNullOrBlank()) return null
+            val match = Regex("""(\d{1,3}(?:[,\s]\d{3})+|\d+)(?:\.(\d+))?\s*([kKmM])?""").find(raw) ?: return null
+            val whole = match.groupValues[1].replace(",", "").replace(" ", "").toLongOrNull() ?: return null
+            val fraction = match.groupValues[2]
+            val suffix = match.groupValues[3].lowercase()
+            val multiplier = when (suffix) {
+                "k" -> 1_000.0
+                "m" -> 1_000_000.0
+                else -> 1.0
+            }
+            val value = (whole.toString() + (if (fraction.isNotEmpty() && multiplier > 1) ".$fraction" else "")).toDouble() * multiplier
+            return value.toLong()
+        }
+    }
+}
 
 /**
  * Structured result of a live web-search benefit lookup for a card not in the

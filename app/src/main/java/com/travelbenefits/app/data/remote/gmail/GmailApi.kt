@@ -13,6 +13,11 @@ interface GmailApi {
         @Query("maxResults") maxResults: Int = 15,
     ): GmailListResponse
 
+    @GET("gmail/v1/users/me/profile")
+    suspend fun getProfile(
+        @Header("Authorization") bearerToken: String,
+    ): GmailProfile
+
     @GET("gmail/v1/users/me/messages/{id}")
     suspend fun getMessage(
         @Header("Authorization") bearerToken: String,
