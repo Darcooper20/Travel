@@ -180,15 +180,16 @@ class LoyaltyInsights @Inject constructor() {
             val start = trip.startEpochDay
             val daysOut = start?.let { it - today }
             val program = trip.loyaltyProgram
-            if (program != null && !trip.loyaltyNumberOnBooking) {
+            if (program != null && trip.loyaltyNumberState != com.travelbenefits.app.domain.model.LoyaltyNumberState.CONFIRMED) {
                 val hasAccount = program in heldPrograms
+                val missing = trip.loyaltyNumberState == com.travelbenefits.app.domain.model.LoyaltyNumberState.MISSING
                 alerts += Alert(
-                    if (daysOut != null && daysOut <= 7) Alert.Severity.WARNING else Alert.Severity.INFO,
-                    "${trip.title}: add your ${program.displayName} number",
-                    if (hasAccount) {
-                        "The confirmation doesn't show a loyalty number on the booking, so it may not earn points or count toward status. Add it before check-in."
-                    } else {
-                        "This booking would credit to ${program.displayName}, which isn't in your wallet yet - joining is free and the stay could earn points."
+                    if (daysOut != null && daysOut <= 7 && missing) Alert.Severity.WARNING else Alert.Severity.INFO,
+                    if (missing) "${trip.title}: add your ${program.displayName} number" else "${trip.title}: confirm your ${program.displayName} number is on the booking",
+                    when {
+                        !hasAccount -> "This booking would credit to ${program.displayName}, which isn't in your wallet yet - joining is free and the stay could earn points."
+                        missing -> "The reservation shows no loyalty number, so it may not earn points or count toward status. Add it before check-in."
+                        else -> "The confirmation email didn't show a loyalty number - that doesn't mean it's missing. Check the reservation and mark it confirmed."
                     },
                     program,
                     trip.id,

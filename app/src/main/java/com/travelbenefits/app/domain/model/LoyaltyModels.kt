@@ -73,6 +73,12 @@ data class ProgramProfile(
     val dataAsOf: String,
     val notes: String? = null,
     val balanceUnit: BalanceUnit = BalanceUnit.POINTS,
+    /** Whether award (points) stays/flights count toward elite status. null = not verified - shown as unknown. */
+    val awardStaysCountForStatus: Boolean? = null,
+    /** How the qualification year runs, e.g. "calendar year"; null = not verified. */
+    val qualificationYear: String? = null,
+    /** Program's rule on pooling/transferring points between members; null = not verified. */
+    val poolingRule: String? = null,
 ) {
     /** "42,500" for points programs, "$42" for dollar balances. */
     fun formatBalance(amount: Long): String = when (balanceUnit) {

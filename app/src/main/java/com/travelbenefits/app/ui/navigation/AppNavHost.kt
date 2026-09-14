@@ -77,6 +77,7 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) 
                     onOpenSettings = { navController.navigate(Screen.Settings.route) },
                     onOpenBenefits = { navController.navigate(Screen.Benefits.route) },
                     onOpenCardValue = { navController.navigate(Screen.CardValue.route) },
+                    onOpenReconcile = { navController.navigate(Screen.Reconcile.route) },
                 )
             }
             composable(Screen.Benefits.route) {
@@ -88,7 +89,13 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) 
             composable(Screen.Loyalty.route) {
                 LoyaltyScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })
             }
-            composable(Screen.Trips.route) { TripsScreen() }
+            composable(Screen.Trips.route) { TripsScreen(onOpenTrip = { id -> navController.navigate(Screen.TripDetail.route(id)) }) }
+            composable(Screen.TripDetail.route, arguments = listOf(androidx.navigation.navArgument("tripId") { type = androidx.navigation.NavType.StringType })) {
+                com.travelbenefits.app.ui.trips.TripDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.Reconcile.route) {
+                com.travelbenefits.app.ui.reconcile.ReconcileScreen(onBack = { navController.popBackStack() })
+            }
             composable(Screen.Optimize.route) { OptimizeScreen() }
             composable(Screen.Wallet.route) { WalletScreen(onOpenCardValue = { navController.navigate(Screen.CardValue.route) }) }
             composable(Screen.Settings.route) {

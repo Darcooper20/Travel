@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +73,7 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
     onOpenBenefits: () -> Unit,
     onOpenCardValue: () -> Unit = {},
+    onOpenReconcile: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -154,6 +156,7 @@ fun DashboardScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     QuickTile(Modifier.weight(1f), Icons.Filled.CardGiftcard, "~${formatUsd(state.unusedCreditsUsd)} unused", "Credits & certificates (${state.unusedCreditCount})", onOpenBenefits)
+                    QuickTile(Modifier.weight(1f), Icons.Filled.CreditCard, "Expected vs received", "Reconciliation & card value", onOpenReconcile)
                 }
             }
             item {

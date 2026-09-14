@@ -29,4 +29,15 @@ data class TripEntity(
     val createdAt: Long,
     /** Added in DB v7. */
     val paymentCardId: Long? = null,
+    /** Added in DB v8 (all nullable). */
+    val status: String? = null,
+    val loyaltyNumberState: String? = null,
+    val bookingChannel: String? = null,
+    val cancellationTerms: String? = null,
+    val departureTimeLocal: String? = null,
+    val timeZoneId: String? = null,
+    val travelers: String? = null,
+    val certificateId: Long? = null,
+    val cashPriceUsd: Double? = null,
+    val pointsProgram: String? = null,
 )

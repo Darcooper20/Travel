@@ -92,6 +92,7 @@ class EmailMonitorRepository @Inject constructor(
     private val processedEmailDao: ProcessedEmailDao,
     private val walletRepository: WalletRepository,
     private val benefitsRepository: BenefitsRepository,
+    private val tripRepository: TripRepository,
     private val anthropicClient: AnthropicClient,
     private val securePrefs: SecurePrefs,
     private val appPrefs: AppPrefs,
@@ -376,22 +377,39 @@ class EmailMonitorRepository @Inject constructor(
             val program = parseProgram(item.loyaltyProgram) ?: LoyaltyProgramCatalog.programForProvider(provider) ?: LoyaltyProgramCatalog.programForProvider(item.title)
             val start = parseDate(item.startDate)?.toEpochDay()
             val end = parseDate(item.endDate)?.toEpochDay() ?: start
+            val numberState = parseNumberState(item)
+            val status = item.status?.uppercase()?.let { st -> com.travelbenefits.app.domain.model.TripStatus.entries.firstOrNull { it.name == st } } ?: com.travelbenefits.app.domain.model.TripStatus.CONFIRMED
             if (duplicate != null) {
-                // Same booking again (change/reminder email): refresh dates and loyalty flag, keep the record.
+                // Same booking again: only newer emails may change it (older ones fill gaps); cancellations and changes are recorded in history.
+                val dupAt = candidate?.receivedAt ?: now
+                val newer = dupAt >= duplicate.createdAt - 1
+                val newState = if (numberState == com.travelbenefits.app.domain.model.LoyaltyNumberState.UNKNOWN) duplicate.loyaltyNumberState else numberState.name
                 tripDao.update(
                     duplicate.copy(
-                        startEpochDay = start ?: duplicate.startEpochDay,
-                        endEpochDay = end ?: duplicate.endEpochDay,
+                        startEpochDay = if (newer) start ?: duplicate.startEpochDay else duplicate.startEpochDay,
+                        endEpochDay = if (newer) end ?: duplicate.endEpochDay else duplicate.endEpochDay,
                         loyaltyProgram = duplicate.loyaltyProgram ?: program,
-                        loyaltyNumberOnBooking = duplicate.loyaltyNumberOnBooking || (item.loyaltyNumberOnBooking == true),
+                        loyaltyNumberState = newState,
+                        loyaltyNumberOnBooking = newState == com.travelbenefits.app.domain.model.LoyaltyNumberState.CONFIRMED.name,
                         totalCost = item.totalCost ?: duplicate.totalCost,
                         pointsUsed = item.pointsUsed?.toLong() ?: duplicate.pointsUsed,
+                        status = if (newer && status != com.travelbenefits.app.domain.model.TripStatus.CONFIRMED) status.name else duplicate.status,
+                        departureTimeLocal = item.departureTimeLocal ?: duplicate.departureTimeLocal,
+                        timeZoneId = item.timeZoneId ?: duplicate.timeZoneId,
+                        cancellationTerms = item.cancellationTerms ?: duplicate.cancellationTerms,
                     ),
                 )
+                if (newer && status != com.travelbenefits.app.domain.model.TripStatus.CONFIRMED) {
+                    tripRepository.addEvent(duplicate.id, if (status == com.travelbenefits.app.domain.model.TripStatus.CHANGED) com.travelbenefits.app.domain.model.TripEventKind.CHANGED else com.travelbenefits.app.domain.model.TripEventKind.CANCELLED, "From email: ${candidate?.subject ?: "update"}", "gmail", dupAt)
+                    event(ActivityKind.TRIP_FOUND, program, "${duplicate.title}: ${status.label.lowercase()}", candidate?.subject, dupAt)
+                }
+                if (item.segments.isNotEmpty() && newer) {
+                    tripRepository.replaceSegments(duplicate.id, item.segments.map { it.toDomain(duplicate.id, status) })
+                }
                 continue
             }
             val title = item.title?.trim()?.ifBlank { null } ?: buildTitle(kind, provider, item.origin, item.destination)
-            tripDao.insert(
+            val newTripId = tripDao.insert(
                 TripEntity(
                     kind = kind,
                     provider = provider,
@@ -402,7 +420,12 @@ class EmailMonitorRepository @Inject constructor(
                     origin = item.origin?.ifBlank { null },
                     destination = item.destination?.ifBlank { null },
                     loyaltyProgram = program,
-                    loyaltyNumberOnBooking = item.loyaltyNumberOnBooking == true,
+                    loyaltyNumberOnBooking = numberState == com.travelbenefits.app.domain.model.LoyaltyNumberState.CONFIRMED,
+                    loyaltyNumberState = numberState.name,
+                    status = status.name,
+                    departureTimeLocal = item.departureTimeLocal,
+                    timeZoneId = item.timeZoneId,
+                    cancellationTerms = item.cancellationTerms,
                     totalCost = item.totalCost?.ifBlank { null },
                     pointsUsed = item.pointsUsed?.toLong(),
                     pointsEarnedEstimate = item.pointsEarnedEstimate?.toLong(),
@@ -413,9 +436,11 @@ class EmailMonitorRepository @Inject constructor(
                     createdAt = now,
                 ),
             )
+            tripRepository.addEvent(newTripId, if (status == com.travelbenefits.app.domain.model.TripStatus.CANCELLED) com.travelbenefits.app.domain.model.TripEventKind.CANCELLED else com.travelbenefits.app.domain.model.TripEventKind.CREATED, "From email: ${candidate?.subject ?: title}", "gmail", candidate?.receivedAt ?: now)
+            if (item.segments.isNotEmpty()) tripRepository.replaceSegments(newTripId, item.segments.map { it.toDomain(newTripId, status) })
             newTrips++
             highlights += title
-            event(ActivityKind.TRIP_FOUND, program, title, listOfNotNull(item.startDate, confirmation?.let { "Conf. $it" }).joinToString(" • ").ifBlank { null }, candidate?.receivedAt ?: now)
+            event(ActivityKind.TRIP_FOUND, program, title + (if (status != com.travelbenefits.app.domain.model.TripStatus.CONFIRMED) " (${status.label.lowercase()})" else ""), listOfNotNull(item.startDate, confirmation?.let { "Conf. $it" }).joinToString(" • ").ifBlank { null }, candidate?.receivedAt ?: now)
         }
 
         for (item in extraction.alerts) {
@@ -542,6 +567,14 @@ class EmailMonitorRepository @Inject constructor(
         else -> listOfNotNull(provider, destination).joinToString(" - ")
     }
 
+    private fun parseNumberState(item: ExtractedTrip): com.travelbenefits.app.domain.model.LoyaltyNumberState =
+        item.loyaltyNumberState?.uppercase()?.let { st -> com.travelbenefits.app.domain.model.LoyaltyNumberState.entries.firstOrNull { it.name == st } }
+            ?: if (item.loyaltyNumberOnBooking == true) com.travelbenefits.app.domain.model.LoyaltyNumberState.CONFIRMED else com.travelbenefits.app.domain.model.LoyaltyNumberState.UNKNOWN
+
+    private fun ExtractedSegment.toDomain(tripId: Long, status: com.travelbenefits.app.domain.model.TripStatus) = com.travelbenefits.app.domain.model.TripSegment(
+        0, tripId, 0, carrier, flightNumber, origin, destination, departLocal, arriveLocal, timeZoneId, cabin, status,
+    )
+
     private fun parseProgram(name: String?): LoyaltyProgram? =
         name?.let { n -> LoyaltyProgram.entries.firstOrNull { it.name.equals(n.trim(), ignoreCase = true) } }
 
@@ -627,7 +660,12 @@ class EmailMonitorRepository @Inject constructor(
                           "origin": string or null,
                           "destination": string or null (city or property),
                           "loyaltyProgram": one of the program names above, or null,
-                          "loyaltyNumberOnBooking": true if a frequent-flyer/loyalty number is shown attached to the booking, else false,
+                          "loyaltyNumberState": "CONFIRMED" if a frequent-flyer/loyalty number is shown attached to the booking, "MISSING" only if the email explicitly says none is attached or asks you to add one, else "UNKNOWN",
+                          "status": "CONFIRMED" | "CHANGED" | "CANCELLED" | "PARTIALLY_CANCELLED" (cancellation and schedule-change emails MUST be included with the right status),
+                          "departureTimeLocal": "HH:mm" local time of departure/check-in or null,
+                          "timeZoneId": IANA zone of the departure airport/hotel (e.g. "America/New_York") or null if unsure,
+                          "cancellationTerms": short quote of the cancellation/refund terms if stated, else null,
+                          "segments": [ { "carrier": string, "flightNumber": string or null, "origin": string, "destination": string, "departLocal": "YYYY-MM-DDTHH:mm" or null, "arriveLocal": "YYYY-MM-DDTHH:mm" or null, "timeZoneId": string or null, "cabin": string or null } ] (flights only; empty for hotels),
                           "totalCost": string or null (as written, with currency),
                           "pointsUsed": integer or null (if paid with points),
                           "pointsEarnedEstimate": integer or null (only if the email states points to be earned),
@@ -665,8 +703,9 @@ class EmailMonitorRepository @Inject constructor(
                     cardRewards, not loyaltyUpdates.
                     Rules: include an email in loyaltyUpdates only if it shows account-specific
                     details (a member number, tier/status, or a points/miles balance). Include a
-                    trip only for an actual booking/confirmation/itinerary/change - not marketing,
-                    price alerts, or searches; cancelled bookings should be skipped. Never invent
+                    trip for any booking/confirmation/itinerary, schedule change or cancellation -
+                    not marketing, price alerts, or searches. Cancellations are important: report
+                    them with status CANCELLED and the same confirmation number. Never invent
                     numbers or dates that aren't in the text; use null. A single email can
                     contribute to more than one list. If nothing qualifies, return
                     {"loyaltyUpdates":[],"trips":[],"alerts":[],"cardRewards":[]}.
@@ -721,10 +760,28 @@ private data class ExtractedTrip(
     val destination: String? = null,
     val loyaltyProgram: String? = null,
     val loyaltyNumberOnBooking: Boolean? = null,
+    val loyaltyNumberState: String? = null,
+    val status: String? = null,
+    val departureTimeLocal: String? = null,
+    val timeZoneId: String? = null,
+    val cancellationTerms: String? = null,
+    val segments: List<ExtractedSegment> = emptyList(),
     val totalCost: String? = null,
     val pointsUsed: Double? = null,
     val pointsEarnedEstimate: Double? = null,
     val sourceSubject: String? = null,
+)
+
+@Serializable
+private data class ExtractedSegment(
+    val carrier: String? = null,
+    val flightNumber: String? = null,
+    val origin: String? = null,
+    val destination: String? = null,
+    val departLocal: String? = null,
+    val arriveLocal: String? = null,
+    val timeZoneId: String? = null,
+    val cabin: String? = null,
 )
 
 @Serializable

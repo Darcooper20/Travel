@@ -18,6 +18,7 @@ import com.travelbenefits.app.data.local.dao.LoyaltyAccountDao
 import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
 import com.travelbenefits.app.data.local.dao.ProcessedEmailDao
 import com.travelbenefits.app.data.local.dao.TripDao
+import com.travelbenefits.app.data.local.dao.TripDetailDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
 import com.travelbenefits.app.data.local.entity.ActionStateEntity
 import com.travelbenefits.app.data.local.entity.ActivityEventEntity
@@ -37,6 +38,10 @@ import com.travelbenefits.app.data.local.entity.LoyaltyAccountEntity
 import com.travelbenefits.app.data.local.entity.PointsSnapshotEntity
 import com.travelbenefits.app.data.local.entity.ProcessedEmailEntity
 import com.travelbenefits.app.data.local.entity.TripEntity
+import com.travelbenefits.app.data.local.entity.TripSegmentEntity
+import com.travelbenefits.app.data.local.entity.TripEventEntity
+import com.travelbenefits.app.data.local.entity.ExpectationEntity
+import com.travelbenefits.app.data.local.entity.AttributionEventEntity
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 
 @Database(
@@ -60,8 +65,12 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
         BenefitLedgerEntity::class,
         ActionStateEntity::class,
         UserOverrideEntity::class,
+        TripSegmentEntity::class,
+        TripEventEntity::class,
+        ExpectationEntity::class,
+        AttributionEventEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -82,6 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun benefitLedgerDao(): BenefitLedgerDao
     abstract fun actionStateDao(): ActionStateDao
     abstract fun userOverrideDao(): UserOverrideDao
+    abstract fun tripDetailDao(): TripDetailDao
 
     companion object {
         const val DATABASE_NAME = "travel_benefits.db"

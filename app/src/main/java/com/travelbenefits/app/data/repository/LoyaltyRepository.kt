@@ -68,5 +68,18 @@ class LoyaltyRepository @Inject constructor(
         }
     }
 
+    /** Adjusts the owner's balance for a program by [delta] (transfer in, redemption out) and records a snapshot. */
+    suspend fun adjustBalance(program: LoyaltyProgram, delta: Long, note: String) {
+        val existing = dao.findByProgram(program)
+        val now = System.currentTimeMillis()
+        val current = existing?.pointsNumeric ?: 0L
+        val next = (current + delta).coerceAtLeast(0)
+        dao.insert(
+            (existing ?: LoyaltyAccountEntity(program = program, membershipNumber = null, tier = null, pointsBalance = null, source = LoyaltyAccountSource.MANUAL, sourceEmailSubject = null, lastUpdated = now))
+                .copy(pointsNumeric = next, pointsBalance = null, lastUpdated = now, lastActivityAt = now, sourceEmailSubject = note),
+        )
+        snapshotDao.insert(PointsSnapshotEntity(program = program, points = next, tier = existing?.tier, recordedAt = now, source = LoyaltyAccountSource.MANUAL))
+    }
+
     suspend fun delete(id: Long) = dao.deleteById(id)
 }

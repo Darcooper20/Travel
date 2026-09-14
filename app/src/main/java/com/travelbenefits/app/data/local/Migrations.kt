@@ -241,5 +241,40 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+    /**
+     * v7 -> v8: trips as the hub. Nullable trip columns (status, loyalty
+     * number tri-state, channel, terms, local time/zone, travelers,
+     * certificate, cash price, points program), segments, booking history,
+     * expectations and attribution events. The old boolean maps true ->
+     * CONFIRMED and false -> UNKNOWN: an email not showing a number never
+     * proved it was missing.
+     */
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            listOf("status TEXT", "loyaltyNumberState TEXT", "bookingChannel TEXT", "cancellationTerms TEXT", "departureTimeLocal TEXT", "timeZoneId TEXT",
+                "travelers TEXT", "certificateId INTEGER", "cashPriceUsd REAL", "pointsProgram TEXT").forEach { col ->
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `${col.substringBefore(' ')}` ${col.substringAfter(' ')}")
+            }
+            db.execSQL("UPDATE `trips` SET `loyaltyNumberState` = CASE WHEN `loyaltyNumberOnBooking` = 1 THEN 'CONFIRMED' ELSE 'UNKNOWN' END, `status` = 'CONFIRMED'")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `trip_segments` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `sequence` INTEGER NOT NULL, " +
+                    "`carrier` TEXT, `flightNumber` TEXT, `origin` TEXT, `destination` TEXT, `departLocal` TEXT, `arriveLocal` TEXT, `timeZoneId` TEXT, `cabin` TEXT, `status` TEXT NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `trip_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `kind` TEXT NOT NULL, " +
+                    "`detail` TEXT NOT NULL, `occurredAt` INTEGER NOT NULL, `source` TEXT NOT NULL)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `expectations` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `refType` TEXT NOT NULL, `refId` TEXT NOT NULL, " +
+                    "`walletCardId` INTEGER, `program` TEXT, `expectedAmount` REAL NOT NULL, `unit` TEXT NOT NULL, `dueByEpochDay` INTEGER NOT NULL, `status` TEXT NOT NULL, " +
+                    "`receivedAmount` REAL, `evidence` TEXT, `note` TEXT, `createdAt` INTEGER NOT NULL, `resolvedAt` INTEGER)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `attribution_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `fromCurrency` TEXT, `toProgram` TEXT, " +
+                    "`amount` REAL NOT NULL, `valueUsd` REAL, `occurredAt` INTEGER NOT NULL, `note` TEXT)",
+            )
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 }

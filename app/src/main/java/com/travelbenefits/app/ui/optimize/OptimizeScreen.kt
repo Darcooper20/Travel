@@ -541,9 +541,21 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     option.partner.note?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                    var amount by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("I transferred (card points)") }, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            val pts = amount.replace(",", "").toLongOrNull() ?: return@TextButton
+                            val bonus = state.bonuses[option.partner.from]
+                            val ratio = bonus?.effectiveRatio(option.partner.ratio) ?: option.partner.ratio
+                            viewModel.recordTransfer(option.walletCard, state.program, pts, (pts * ratio).toLong())
+                            amount = ""
+                        }) { Text("Record") }
+                    }
                 }
             }
         }
+        item { Text("Transfers are recorded here after you make them on the bank's site - the app never moves points itself.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         item { Text("All known partners", style = MaterialTheme.typography.titleMedium) }
         if (state.allPartners.isEmpty()) {
             item { Text("No bank currency transfers into ${state.program.displayName} in the app's table - its points come from stays/flights and the co-brand card.", style = MaterialTheme.typography.bodySmall) }

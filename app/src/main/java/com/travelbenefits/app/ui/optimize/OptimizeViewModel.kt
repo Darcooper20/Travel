@@ -141,8 +141,9 @@ data class AdvisorUiState(
 
 @HiltViewModel
 class OptimizeViewModel @Inject constructor(
-    walletRepository: WalletRepository,
-    loyaltyRepository: LoyaltyRepository,
+    private val walletRepository: WalletRepository,
+    private val loyaltyRepository: LoyaltyRepository,
+    private val tripRepository: com.travelbenefits.app.data.repository.TripRepository,
     private val recommendationEngine: RecommendationEngine,
     private val optimizer: PointsOptimizer,
     private val advisorRepository: PointsAdvisorRepository,
@@ -294,6 +295,17 @@ class OptimizeViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransferUiState())
 
     fun selectTransferProgram(program: LoyaltyProgram) { transferProgram.value = program }
+
+    /** Records a completed points transfer so balances move and totals don't double count (attribution ledger). Never initiates a transfer. */
+    fun recordTransfer(card: ResolvedWalletCard, program: LoyaltyProgram, cardPoints: Long, programPointsReceived: Long) {
+        viewModelScope.launch {
+            val current = card.walletCard.rewardsBalance
+            if (current != null) walletRepository.updateRewardsBalance(card.walletCard.id, (current - cardPoints).coerceAtLeast(0), System.currentTimeMillis())
+            loyaltyRepository.adjustBalance(program, programPointsReceived, "Transfer from ${card.displayName}")
+            tripRepository.recordAttribution("TRANSFER", card.rewardCurrency?.name, program.name, programPointsReceived.toDouble(), null, "$cardPoints ${card.rewardCurrency?.displayName ?: "points"} → $programPointsReceived ${program.displayName}")
+            _watch.value = _watch.value.copy(message = "Transfer recorded: balances updated, attribution logged.")
+        }
+    }
 
     fun refreshBonuses() {
         if (refreshingBonuses.value) return

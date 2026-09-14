@@ -53,7 +53,7 @@ import com.travelbenefits.app.ui.common.formatPoints
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TripsScreen(viewModel: TripsViewModel = hiltViewModel()) {
+fun TripsScreen(onOpenTrip: (Long) -> Unit = {}, viewModel: TripsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val addState by viewModel.addState.collectAsState()
     var pendingDelete by remember { mutableStateOf<Trip?>(null) }
@@ -82,13 +82,13 @@ fun TripsScreen(viewModel: TripsViewModel = hiltViewModel()) {
             if (state.upcoming.isNotEmpty()) {
                 item { Text("Upcoming", style = MaterialTheme.typography.titleMedium) }
                 items(state.upcoming, key = { it.trip.id }) { row ->
-                    TripCard(row, onMarkAttached = { viewModel.markLoyaltyAttached(row.trip) }, onDelete = { pendingDelete = row.trip })
+                    TripCard(row, onOpen = { onOpenTrip(row.trip.id) }, onMarkAttached = { viewModel.markLoyaltyAttached(row.trip) }, onDelete = { pendingDelete = row.trip })
                 }
             }
             if (state.past.isNotEmpty()) {
                 item { Text("Past", style = MaterialTheme.typography.titleMedium) }
                 items(state.past, key = { it.trip.id }) { row ->
-                    TripCard(row, onMarkAttached = { viewModel.markLoyaltyAttached(row.trip) }, onDelete = { pendingDelete = row.trip })
+                    TripCard(row, onOpen = { onOpenTrip(row.trip.id) }, onMarkAttached = { viewModel.markLoyaltyAttached(row.trip) }, onDelete = { pendingDelete = row.trip })
                 }
             }
         }
@@ -115,7 +115,7 @@ fun TripsScreen(viewModel: TripsViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun TripCard(row: TripRowState, onMarkAttached: () -> Unit, onDelete: () -> Unit) {
+private fun TripCard(row: TripRowState, onOpen: () -> Unit, onMarkAttached: () -> Unit, onDelete: () -> Unit) {
     val trip = row.trip
     val icon = when (trip.kind) {
         TripKind.FLIGHT -> Icons.Filled.Flight
@@ -124,8 +124,9 @@ private fun TripCard(row: TripRowState, onMarkAttached: () -> Unit, onDelete: ()
         TripKind.RAIL -> Icons.Filled.Train
         TripKind.OTHER -> Icons.Filled.Luggage
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (trip.status != com.travelbenefits.app.domain.model.TripStatus.CONFIRMED) Text(trip.status.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = trip.kind.label, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(12.dp))

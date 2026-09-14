@@ -103,8 +103,15 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
                     val group = accounts.filter { it.account.program.kind == kind && it.account.memberName == member }
                     if (group.isNotEmpty()) {
                         item { Text(kind.label, style = MaterialTheme.typography.titleMedium) }
-                        items(group, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
+                        items(group, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }, onHypothetical = { v -> viewModel.setHypothetical(it.account.id, v) }) }
                     }
+                }
+            }
+            item {
+                var cost by remember { mutableStateOf("") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = cost, onValueChange = { cost = it }, label = { Text("Your typical paid night/segment cost (USD), for forecasts") }, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.setTypicalNightCost(cost) }) { Text("Save") }
                 }
             }
             item {
@@ -143,7 +150,7 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
 }
 
 @Composable
-private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: () -> Unit, onHypothetical: (Int) -> Unit = {}) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     val account = state.account
@@ -245,6 +252,22 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
                     }
                 }
                 profile.notes?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                state.forecast?.let { fc ->
+                    Spacer(Modifier.height(4.dp))
+                    Text("Status forecast", style = MaterialTheme.typography.labelMedium)
+                    LabelValue("Posted this year", fc.posted?.toString() ?: "unknown")
+                    LabelValue("Booked (number confirmed)", "+${fc.booked} ${fc.metric.unit}")
+                    LabelValue("Hypothetical", "+${fc.hypothetical}")
+                    fc.nextTier?.let { nt -> LabelValue("Projected vs ${nt.name}", (fc.projected?.toString() ?: "?") + " / " + (nt.threshold?.toString() ?: "?") + (fc.remainingAfterBooked?.let { r -> " (${r} to go)" } ?: "")) }
+                    fc.estimatedCostToTierUsd?.let { LabelValue("Rough cost to close the gap", formatUsd(it) + " (information only)") }
+                    Text(fc.awardStaysRule + (fc.qualificationYear?.let { " Qualification year: $it." } ?: ""), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    fc.notes.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    var hypo by remember { mutableStateOf("") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = hypo, onValueChange = { hypo = it }, label = { Text("What if I add… (${fc.metric.unit})") }, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { onHypothetical(hypo.toIntOrNull() ?: 0) }) { Text("Apply") }
+                    }
+                }
                 if (state.history.size > 1) {
                     Spacer(Modifier.height(4.dp))
                     Text("Balance history", style = MaterialTheme.typography.labelMedium)

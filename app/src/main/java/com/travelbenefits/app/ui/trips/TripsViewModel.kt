@@ -76,13 +76,16 @@ class TripsViewModel @Inject constructor(
         val program = trip.loyaltyProgram
         val account = program?.let { byProgram[it] }
         val upcoming = trip.isUpcoming(today)
+        val state = trip.loyaltyNumberState
         val (note, problem) = when {
+            trip.isCancelled -> "Cancelled." to false
             program == null -> "No loyalty program recognised for this booking." to false
-            trip.loyaltyNumberOnBooking -> "Crediting to ${program.displayName}" + (account?.tier?.let { " ($it)" } ?: "") + "." to false
-            account != null && upcoming -> "Your ${program.displayName} number doesn't appear on this booking - add it (#${account.membershipNumber ?: "number not saved"}) before check-in so it earns." to true
-            account != null -> "Booked without your ${program.displayName} number on it - request retroactive credit if it wasn't earned." to true
+            state == com.travelbenefits.app.domain.model.LoyaltyNumberState.CONFIRMED -> "Crediting to ${program.displayName}" + (account?.tier?.let { " ($it)" } ?: "") + "." to false
+            state == com.travelbenefits.app.domain.model.LoyaltyNumberState.MISSING && account != null && upcoming -> "Your ${program.displayName} number is not on this booking - add it (#${account.membershipNumber ?: "number not saved"}) before check-in so it earns." to true
+            state == com.travelbenefits.app.domain.model.LoyaltyNumberState.MISSING && account != null -> "Booked without your ${program.displayName} number - request retroactive credit if it wasn't earned." to true
+            account != null && upcoming -> "Loyalty number status unknown for this ${program.displayName} booking - check the reservation and confirm." to true
             upcoming -> "This would credit to ${program.displayName}; you don't have that account saved yet. Joining is free." to true
-            else -> "Could have credited to ${program.displayName}." to false
+            else -> "Loyalty number status unknown (${program.displayName})." to false
         }
         return TripRowState(trip = trip, isUpcoming = upcoming, matchedAccount = account, earningNote = note, earningIsProblem = problem)
     }

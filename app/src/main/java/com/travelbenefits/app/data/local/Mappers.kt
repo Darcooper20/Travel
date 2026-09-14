@@ -18,8 +18,17 @@ import com.travelbenefits.app.domain.model.RotatingSelection
 import com.travelbenefits.app.domain.model.SpendingCategory
 import com.travelbenefits.app.domain.model.TransferBonus
 import com.travelbenefits.app.domain.model.LoyaltyAccount
+import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.PointsSnapshot
 import com.travelbenefits.app.domain.model.Trip
+import com.travelbenefits.app.domain.model.TripStatus
+import com.travelbenefits.app.domain.model.LoyaltyNumberState
+import com.travelbenefits.app.domain.model.BookingChannel
+import com.travelbenefits.app.domain.model.TripSegment
+import com.travelbenefits.app.domain.model.TripEvent
+import com.travelbenefits.app.domain.model.TripEventKind
+import com.travelbenefits.app.data.local.entity.TripSegmentEntity
+import com.travelbenefits.app.data.local.entity.TripEventEntity
 import com.travelbenefits.app.domain.model.WalletCard
 
 fun WalletCardEntity.toDomain(): WalletCard = WalletCard(
@@ -77,6 +86,17 @@ fun TripEntity.toDomain(): Trip = Trip(
     notes = notes,
     createdAt = createdAt,
     paymentCardId = paymentCardId,
+    status = status?.let { v -> TripStatus.entries.firstOrNull { it.name == v } } ?: TripStatus.CONFIRMED,
+    loyaltyNumberState = loyaltyNumberState?.let { v -> LoyaltyNumberState.entries.firstOrNull { it.name == v } }
+        ?: if (loyaltyNumberOnBooking) LoyaltyNumberState.CONFIRMED else LoyaltyNumberState.UNKNOWN,
+    bookingChannel = bookingChannel?.let { v -> BookingChannel.entries.firstOrNull { it.name == v } },
+    cancellationTerms = cancellationTerms,
+    departureTimeLocal = departureTimeLocal,
+    timeZoneId = timeZoneId,
+    travelers = travelers,
+    certificateId = certificateId,
+    cashPriceUsd = cashPriceUsd,
+    pointsProgram = pointsProgram?.let { v -> LoyaltyProgram.entries.firstOrNull { it.name == v } },
 )
 
 fun Trip.toEntity(): TripEntity = TripEntity(
@@ -100,7 +120,24 @@ fun Trip.toEntity(): TripEntity = TripEntity(
     notes = notes,
     createdAt = createdAt,
     paymentCardId = paymentCardId,
+    status = status.name,
+    loyaltyNumberState = loyaltyNumberState.name,
+    bookingChannel = bookingChannel?.name,
+    cancellationTerms = cancellationTerms,
+    departureTimeLocal = departureTimeLocal,
+    timeZoneId = timeZoneId,
+    travelers = travelers,
+    certificateId = certificateId,
+    cashPriceUsd = cashPriceUsd,
+    pointsProgram = pointsProgram?.name,
 )
+
+fun TripSegmentEntity.toDomain(): TripSegment = TripSegment(
+    id, tripId, sequence, carrier, flightNumber, origin, destination, departLocal, arriveLocal, timeZoneId, cabin,
+    TripStatus.entries.firstOrNull { it.name == status } ?: TripStatus.CONFIRMED,
+)
+
+fun TripEventEntity.toDomain(): TripEvent = TripEvent(id, tripId, TripEventKind.entries.firstOrNull { it.name == kind } ?: TripEventKind.NOTE, detail, occurredAt, source)
 
 fun PointsSnapshotEntity.toDomain(): PointsSnapshot = PointsSnapshot(
     id = id,

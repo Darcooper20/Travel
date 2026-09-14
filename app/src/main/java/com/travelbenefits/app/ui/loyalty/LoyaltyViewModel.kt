@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.travelbenefits.app.auth.GmailAuthManager
 import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.domain.LoyaltyInsights
+import com.travelbenefits.app.domain.StatusForecaster
+import com.travelbenefits.app.data.repository.TripRepository
+import com.travelbenefits.app.data.repository.OverrideRepository
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.PointsSnapshot
@@ -33,6 +36,7 @@ data class AccountCardState(
     val estimatedValueUsd: Double?,
     val awardNightsEstimate: Int?,
     val history: List<PointsSnapshot>,
+    val forecast: StatusForecaster.Forecast? = null,
 )
 
 data class EditAccountState(
@@ -51,13 +55,22 @@ data class EditAccountState(
 class LoyaltyViewModel @Inject constructor(
     private val loyaltyRepository: LoyaltyRepository,
     private val insights: LoyaltyInsights,
+    private val forecaster: StatusForecaster,
+    tripRepository: TripRepository,
+    private val overrideRepository: OverrideRepository,
     gmailAuthManager: GmailAuthManager,
 ) : ViewModel() {
+
+    private val hypothetical = MutableStateFlow<Map<Long, Int>>(emptyMap())
 
     val accounts: StateFlow<List<AccountCardState>> = combine(
         loyaltyRepository.observeAccounts(),
         loyaltyRepository.observeSnapshots(),
-    ) { accounts, snapshots ->
+        tripRepository.observeTrips(),
+        hypothetical,
+        overrideRepository.observeOverrides(),
+    ) { accounts, snapshots, trips, hypo, overrides ->
+        val unitCost = overrides[OverrideRepository.SCOPE_GLOBAL to "typicalNightCostUsd"]?.toDoubleOrNull()
         accounts.map { account ->
             AccountCardState(
                 account = account,
@@ -68,6 +81,7 @@ class LoyaltyViewModel @Inject constructor(
                 estimatedValueUsd = insights.estimatedValueUsd(account),
                 awardNightsEstimate = insights.awardNightsEstimate(account),
                 history = snapshots.filter { it.program == account.program }.sortedByDescending { it.recordedAt }.take(8),
+                forecast = forecaster.forecast(account, trips, hypo[account.id] ?: 0, unitCost),
             )
         }.sortedWith(compareBy({ it.account.memberName ?: "" }, { it.account.program.kind }, { -(it.estimatedValueUsd ?: -1.0) }))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -118,6 +132,12 @@ class LoyaltyViewModel @Inject constructor(
             )
             closeEdit()
         }
+    }
+
+    fun setHypothetical(accountId: Long, value: Int) { hypothetical.value = hypothetical.value + (accountId to value) }
+
+    fun setTypicalNightCost(value: String) {
+        viewModelScope.launch { overrideRepository.set(OverrideRepository.SCOPE_GLOBAL, "typicalNightCostUsd", value.trim().toDoubleOrNull()?.toString()) }
     }
 
     fun delete(id: Long) {

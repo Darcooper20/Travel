@@ -54,10 +54,14 @@ class CapUsageCalculator @Inject constructor() {
         CapPeriod.QUARTERLY -> Quarters.start(Quarters.keyFor(today)).toEpochDay()
         CapPeriod.ANNUAL -> LocalDate.of(today.year, 1, 1).toEpochDay()
         CapPeriod.ACCOUNT_YEAR -> {
-            val opened = dateOpenedEpochDay?.let { LocalDate.ofEpochDay(it) } ?: return LocalDate.of(today.year, 1, 1).toEpochDay()
-            var start = opened.withYear(today.year)
-            if (start.isAfter(today)) start = start.minusYears(1)
-            start.toEpochDay()
+            val opened = dateOpenedEpochDay?.let { LocalDate.ofEpochDay(it) }
+            if (opened == null) {
+                LocalDate.of(today.year, 1, 1).toEpochDay()
+            } else {
+                var start = opened.withYear(today.year)
+                if (start.isAfter(today)) start = start.minusYears(1)
+                start.toEpochDay()
+            }
         }
     }
 }

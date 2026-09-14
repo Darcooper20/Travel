@@ -26,6 +26,9 @@ object LoyaltyProgramCatalog {
     val profiles: Map<LoyaltyProgram, ProgramProfile> = listOf(
         ProgramProfile(
             program = LoyaltyProgram.MARRIOTT_BONVOY,
+            awardStaysCountForStatus = true,
+            qualificationYear = "calendar year",
+            poolingRule = "Members can transfer up to 100,000 points per year to another member (both accounts 30+ days old); no shared pool.",
             qualifyingMetric = QualifyingMetric.NIGHTS,
             tiers = listOf(
                 TierLevel("Silver", 10, perks = "10% bonus points, late checkout when available"),
@@ -46,6 +49,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.HILTON_HONORS,
+            awardStaysCountForStatus = true,
+            qualificationYear = "calendar year",
+            poolingRule = "Points Pooling lets up to 11 members combine points free of charge.",
             qualifyingMetric = QualifyingMetric.NIGHTS,
             tiers = listOf(
                 TierLevel("Silver", 10, altQualification = "or 4 stays", perks = "20% bonus points, 5th standard reward night free"),
@@ -64,6 +70,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.WORLD_OF_HYATT,
+            awardStaysCountForStatus = true,
+            qualificationYear = "calendar year",
+            poolingRule = "Points can be transferred to another member with a request form; no pool.",
             qualifyingMetric = QualifyingMetric.NIGHTS,
             tiers = listOf(
                 TierLevel("Discoverist", 10, altQualification = "or 25,000 base points", perks = "10% bonus points, 2pm checkout, premium wifi"),
@@ -82,6 +91,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.IHG_ONE_REWARDS,
+            awardStaysCountForStatus = true,
+            qualificationYear = "calendar year",
+            poolingRule = "Points can be transferred between members for a fee; verify current terms.",
             qualifyingMetric = QualifyingMetric.NIGHTS,
             tiers = listOf(
                 TierLevel("Silver", 10, perks = "20% bonus points"),
@@ -193,6 +205,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.DELTA_SKYMILES,
+            awardStaysCountForStatus = null,
+            qualificationYear = "calendar year (Medallion Qualification Year)",
+            poolingRule = "Miles can be transferred for a fee; no family pooling. Whether award tickets earn MQDs is not verified here.",
             qualifyingMetric = QualifyingMetric.QUALIFYING_DOLLARS,
             tiers = listOf(
                 TierLevel("Silver Medallion", 5_000, perks = "Unlimited complimentary upgrades (lowest priority), free checked bag, priority boarding"),
@@ -213,6 +228,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.UNITED_MILEAGEPLUS,
+            awardStaysCountForStatus = null,
+            qualificationYear = "calendar year",
+            poolingRule = "MileagePlus Pool lets up to 5 members share miles (some restrictions).",
             qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
             tiers = listOf(
                 TierLevel("Premier Silver", 6_000, altQualification = "or 5,000 PQP + 15 PQF", perks = "Complimentary Economy Plus at check-in, free checked bag"),
@@ -233,6 +251,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.SOUTHWEST_RAPID_REWARDS,
+            awardStaysCountForStatus = null,
+            qualificationYear = "calendar year",
+            poolingRule = "Points can be transferred to other members for a fee.",
             qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
             tiers = listOf(
                 TierLevel("A-List", 35_000, altQualification = "or 20 qualifying one-way flights", perks = "Priority boarding, 25% earning bonus, same-day standby"),
@@ -251,6 +272,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.AMERICAN_AADVANTAGE,
+            awardStaysCountForStatus = false,
+            qualificationYear = "March 1 - end of February qualification year",
+            poolingRule = "No family pooling; miles transfer for a fee. Award tickets do not earn Loyalty Points.",
             qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
             tiers = listOf(
                 TierLevel("Gold", 40_000, perks = "40% mileage bonus, free checked bag, complimentary upgrades"),
@@ -290,6 +314,9 @@ object LoyaltyProgramCatalog {
         ),
         ProgramProfile(
             program = LoyaltyProgram.JETBLUE_TRUEBLUE,
+            awardStaysCountForStatus = null,
+            qualificationYear = "calendar year",
+            poolingRule = "Points Pooling lets family groups combine points.",
             qualifyingMetric = QualifyingMetric.TILES,
             tiers = listOf(
                 TierLevel("Mosaic 1", 50, perks = "Free checked bags, early boarding, Even More Space at check-in"),
