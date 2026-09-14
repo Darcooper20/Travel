@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Four dots (the four providers) converging on one centre circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M54,44 a10,10 0 1 0 0.001,0 z" />
+    <path android:fillColor="#B9A7F5" android:pathData="M30,30 a6,6 0 1 0 0.001,0 z" />
+    <path android:fillColor="#B9A7F5" android:pathData="M78,30 a6,6 0 1 0 0.001,0 z" />
+    <path android:fillColor="#B9A7F5" android:pathData="M30,78 a6,6 0 1 0 0.001,0 z" />
+    <path android:fillColor="#B9A7F5" android:pathData="M78,78 a6,6 0 1 0 0.001,0 z" />
+    <path android:strokeColor="#B9A7F5" android:strokeWidth="3" android:pathData="M34,34 L46,46 M74,34 L62,46 M34,74 L46,62 M74,74 L62,62" />
+</vector>

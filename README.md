@@ -16,6 +16,14 @@ calls this app makes are:
 
 No backend, no account system, no analytics/tracking SDKs.
 
+## Also in this repo: Consensus
+
+`consensus/` is a second, independent app (package `com.consensus.app`)
+that sends one question to Claude, ChatGPT, Gemini and Grok, has them
+critique each other, and returns one unified answer. It has its own
+README, workflow (`build-consensus-apk.yml`) and release tag
+(`consensus-debug-latest`). See [consensus/README.md](consensus/README.md).
+
 ## Getting a build without installing Android Studio
 
 Every push to `claude/credit-card-benefits-tracker-i0jp0m` triggers

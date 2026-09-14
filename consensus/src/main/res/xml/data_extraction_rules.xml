@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup is off (allowBackup=false); these rules keep API keys and the
+     conversation database out of any backup if it is ever turned on. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="consensus_secure_prefs.xml" />
+        <exclude domain="database" path="consensus.db" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="consensus_secure_prefs.xml" />
+        <exclude domain="database" path="consensus.db" />
+    </device-transfer>
+</data-extraction-rules>

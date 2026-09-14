@@ -1,0 +1,56 @@
+name: Build Consensus APK
+
+# Builds the Consensus app's debug APK on every push to its branch (or on
+# demand from the Actions tab) and publishes it to a GitHub Release with a
+# stable download link, tag "consensus-debug-latest".
+
+on:
+  push:
+    branches: ["claude/lucid-hypatia-8h37r1"]
+    paths:
+      - "consensus/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/build-consensus-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew :consensus:assembleDebug --no-daemon
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: consensus-debug-apk
+          path: consensus/build/outputs/apk/debug/consensus-debug.apk
+
+      - name: Publish APK to the "consensus-debug-latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: consensus-debug-latest
+          name: Consensus - latest debug build
+          body: |
+            Automatically built from commit ${{ github.sha }}.
+            Download `consensus-debug.apk` below and sideload it - see
+            consensus/README.md for install and API key setup.
+          prerelease: true
+          files: consensus/build/outputs/apk/debug/consensus-debug.apk

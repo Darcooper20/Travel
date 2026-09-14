@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Travel Benefits"
 include(":app")
+include(":consensus")
