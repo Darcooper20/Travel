@@ -7,6 +7,11 @@ import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.domain.model.RewardRate
 import com.travelbenefits.app.domain.model.RotatingKind
+import com.travelbenefits.app.domain.model.BookingChannel
+import com.travelbenefits.app.domain.model.CapPeriod
+import com.travelbenefits.app.domain.model.PeriodBasis
+import com.travelbenefits.app.domain.model.RuleProvenance
+import com.travelbenefits.app.domain.model.TravelPerk
 import com.travelbenefits.app.domain.model.SpendingCategory as C
 
 /**
@@ -63,15 +68,28 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CHASE_UR,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.TRAVEL_GENERAL, 8.0, "Travel booked through Chase Travel"),
+                RewardRate(C.TRAVEL_GENERAL, 8.0, "Travel booked through Chase Travel", channel = BookingChannel.ISSUER_PORTAL),
+                RewardRate(C.AIRFARE, 4.0, "Flights booked directly with the airline", channel = BookingChannel.DIRECT),
+                RewardRate(C.HOTELS, 4.0, "Hotels booked directly", channel = BookingChannel.DIRECT),
                 RewardRate(C.DINING, 3.0),
             ),
             credits = listOf(
-                CardCredit("Travel credit", 300, "annual", "General travel purchase credit."),
+                CardCredit("Travel credit", 300, "annual", "Automatic statement credit on travel purchases each cardmember year.", periodBasis = PeriodBasis.ANNIVERSARY, merchantKeywords = listOf("airline", "hotel", "uber", "lyft", "amtrak", "delta", "united", "american", "southwest", "marriott", "hilton", "hyatt", "travel credit"), sourceUrl = "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve"),
                 CardCredit("Global Entry/TSA PreCheck/NEXUS credit", 120, "every 4 years", "Application fee reimbursement."),
             ),
             loyaltyBenefits = listOf(
                 LoyaltyBenefit(LoyaltyProgram.MARRIOTT_BONVOY, "Complimentary lounge/dining perks vary", "Access via The Edit / Sapphire Reserve travel program, not automatic elite status."),
+            ),
+            provenance = RuleProvenance("https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve", "2026-09-14", "2025 refresh: 8x portal travel, 4x direct flights/hotels, 3x dining; \$300 travel credit resets on the cardmember anniversary. Credit list not exhaustive."),
+            foreignTransactionFeePct = 0.0,
+            authorizedUserFeeUsd = 195,
+            travelPerks = listOf(
+                TravelPerk(TravelPerk.Kind.LOUNGE, "Priority Pass Select and Chase Sapphire Lounges", "Enrollment required; guest rules vary by lounge"),
+                TravelPerk(TravelPerk.Kind.TRIP_DELAY, "Trip delay reimbursement up to \$500 per ticket after 6+ hours or overnight", "When the common-carrier fare is charged to the card (in full or with points)"),
+                TravelPerk(TravelPerk.Kind.TRIP_CANCELLATION, "Trip cancellation/interruption up to \$10,000 per person", "When the trip is charged to the card"),
+                TravelPerk(TravelPerk.Kind.BAGGAGE_DELAY, "Baggage delay up to \$100/day for 5 days", "When the fare is charged to the card"),
+                TravelPerk(TravelPerk.Kind.RENTAL_CDW, "Primary rental car collision damage waiver", "Decline the rental company's CDW and pay with the card"),
+                TravelPerk(TravelPerk.Kind.NO_FOREIGN_FEE, "No foreign transaction fees", null),
             ),
             dataAsOf = AS_OF,
             notes = "Annual fee jumped sharply in the 2025 refresh (was \$550) with added credits (dining, StubHub, Apple TV+/Music, Priority Pass) - the credit list above is not exhaustive; check chase.com.",
@@ -102,9 +120,12 @@ object CardCatalog {
             categoryRates = listOf(
                 RewardRate(C.DINING, 3.0),
                 RewardRate(C.DRUGSTORES, 3.0),
-                RewardRate(C.TRAVEL_GENERAL, 5.0, "Travel booked through Chase Travel"),
+                RewardRate(C.TRAVEL_GENERAL, 5.0, "Travel booked through Chase Travel", channel = BookingChannel.ISSUER_PORTAL),
             ),
             rotatingKind = RotatingKind.QUARTERLY_ACTIVATION,
+            rotatingCapUsd = 1_500,
+            provenance = RuleProvenance("https://creditcards.chase.com/cash-back-credit-cards/freedom/flex", "2026-09-14"),
+            foreignTransactionFeePct = 3.0,
             dataAsOf = AS_OF,
             notes = "Also earns 5% (multiplier 5.0) in rotating quarterly categories up to \$1,500/quarter after activation - not modeled per-category here since it changes every 3 months; check the current quarter's categories in the Chase app.",
         ),
@@ -117,15 +138,17 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.AMEX_MR,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.DINING, 4.0, "US restaurants, capped at \$50k/year in purchases"),
-                RewardRate(C.GROCERIES, 4.0, "US supermarkets, capped at \$25k/year"),
-                RewardRate(C.AIRFARE, 3.0, "Booked directly with airlines or via amextravel.com"),
+                RewardRate(C.DINING, 4.0, "US restaurants (worldwide restaurants also 4x)", capUsd = 50_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/gold-card/"),
+                RewardRate(C.GROCERIES, 4.0, "US supermarkets", capUsd = 25_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/gold-card/"),
+                RewardRate(C.AIRFARE, 3.0, "Booked directly with airlines or via amextravel.com", channel = BookingChannel.DIRECT),
             ),
             credits = listOf(
-                CardCredit("Dining credit", 120, "monthly (\$10/mo)", "Grubhub, Cheesecake Factory, Goldbelly and other partners."),
-                CardCredit("Uber Cash", 120, "monthly (\$10/mo)", "Uber rides and Uber Eats in the US."),
+                CardCredit("Dining credit", 120, "monthly (\$10/mo)", "Grubhub, Cheesecake Factory, Goldbelly and other partners.", periodBasis = PeriodBasis.CALENDAR, merchantKeywords = listOf("grubhub", "cheesecake", "goldbelly", "wine.com", "five guys"), requiresEnrollment = true, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/gold-card/"),
+                CardCredit("Uber Cash", 120, "monthly (\$10/mo)", "Uber rides and Uber Eats in the US; added to the Uber app, not a statement credit.", periodBasis = PeriodBasis.CALENDAR, merchantKeywords = listOf("uber"), requiresEnrollment = true, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/gold-card/"),
                 CardCredit("Resort credit", 100, "annual", "At select Amex Fine Hotels + Resorts / The Hotel Collection properties."),
             ),
+            provenance = RuleProvenance("https://www.americanexpress.com/us/credit-cards/card/gold-card/", "2026-09-14", "Caps and credits checked against the product page wording during the 2026-09 research pass; enrollment required for credits."),
+            foreignTransactionFeePct = 0.0,
             dataAsOf = AS_OF,
             notes = "Annual fee rose to \$325 (from \$250) in the 2025 refresh, with credits restructured - verify current credit partners, they rotate.",
         ),
@@ -138,11 +161,11 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.AMEX_MR,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.AIRFARE, 5.0, "Booked directly or via Amex Travel, capped at \$500k/year"),
-                RewardRate(C.HOTELS, 5.0, "Prepaid room rates booked via Amex Travel"),
+                RewardRate(C.AIRFARE, 5.0, "Booked directly with airlines or via Amex Travel", capUsd = 500_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0, channel = BookingChannel.DIRECT),
+                RewardRate(C.HOTELS, 5.0, "Prepaid room rates booked via Amex Travel", channel = BookingChannel.ISSUER_PORTAL),
             ),
             credits = listOf(
-                CardCredit("Airline fee credit", 200, "annual", "Incidental fees with one selected airline."),
+                CardCredit("Airline fee credit", 200, "annual", "Incidental fees (bags, seats, lounge day passes) with one selected airline; not fares.", periodBasis = PeriodBasis.CALENDAR, merchantKeywords = listOf("delta", "united", "american", "southwest", "jetblue", "alaska", "spirit", "frontier", "hawaiian"), requiresEnrollment = true, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/platinum/"),
                 CardCredit("Uber Cash", 200, "annual (\$15-20/mo)", "Uber rides and Uber Eats in the US."),
                 CardCredit("CLEAR Plus credit", 199, "annual", "Expedited airport security membership."),
                 CardCredit("Hotel credit", 200, "annual", "Prepaid Fine Hotels + Resorts / The Hotel Collection bookings."),
@@ -151,6 +174,17 @@ object CardCatalog {
             loyaltyBenefits = listOf(
                 LoyaltyBenefit(LoyaltyProgram.MARRIOTT_BONVOY, "Gold elite status", "Complimentary Marriott Bonvoy Gold via enrollment."),
                 LoyaltyBenefit(LoyaltyProgram.HILTON_HONORS, "Gold status", "Complimentary Hilton Honors Gold via enrollment."),
+            ),
+            provenance = RuleProvenance("https://www.americanexpress.com/us/credit-cards/card/platinum/", "2026-09-14", "Credits require enrollment and most reset on the calendar year; Uber Cash is monthly with a December bonus. Verify current amounts - the 2025 refresh changed several."),
+            foreignTransactionFeePct = 0.0,
+            authorizedUserFeeUsd = 195,
+            travelPerks = listOf(
+                TravelPerk(TravelPerk.Kind.LOUNGE, "Centurion Lounges, Priority Pass Select, Delta Sky Club (when flying Delta), Escape/Plaza Premium", "Enrollment required for Priority Pass; Sky Club needs a same-day Delta ticket and has annual visit limits"),
+                TravelPerk(TravelPerk.Kind.HOTEL_STATUS, "Marriott Bonvoy Gold and Hilton Honors Gold", "Enrollment required"),
+                TravelPerk(TravelPerk.Kind.TRIP_DELAY, "Trip delay reimbursement up to \$500 per trip after 6+ hours", "When the round-trip fare is charged to the card"),
+                TravelPerk(TravelPerk.Kind.TRIP_CANCELLATION, "Trip cancellation/interruption up to \$10,000 per trip", "When the round-trip fare is charged to the card"),
+                TravelPerk(TravelPerk.Kind.RENTAL_CDW, "Secondary rental car loss and damage coverage", "Decline the rental company's CDW and pay with the card"),
+                TravelPerk(TravelPerk.Kind.NO_FOREIGN_FEE, "No foreign transaction fees", null),
             ),
             dataAsOf = AS_OF,
             notes = "Annual fee rose to \$895 (from \$695) in the 2025 refresh with several credits added/changed - this list is not exhaustive (there are more niche credits, e.g. Saks, digital entertainment, Walmart+). Also includes Centurion Lounge and Priority Pass Select lounge access, not modeled as a dollar credit here.",
@@ -164,11 +198,13 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CASH_BACK,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.GROCERIES, 6.0, "US supermarkets, capped at \$6k/year then 1%"),
+                RewardRate(C.GROCERIES, 6.0, "US supermarkets", capUsd = 6_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0, sourceUrl = "https://www.americanexpress.com/us/credit-cards/card/blue-cash-preferred/"),
                 RewardRate(C.STREAMING, 6.0, "Select US streaming subscriptions"),
                 RewardRate(C.TRANSIT, 3.0),
                 RewardRate(C.GAS_EV, 3.0, "US gas stations"),
             ),
+            provenance = RuleProvenance("https://www.americanexpress.com/us/credit-cards/card/blue-cash-preferred/", "2026-09-14"),
+            foreignTransactionFeePct = 2.7,
             dataAsOf = AS_OF,
         ),
         CardCatalogEntry(
@@ -180,10 +216,12 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CASH_BACK,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.GROCERIES, 3.0, "US supermarkets, capped at \$6k/year then 1%"),
-                RewardRate(C.GAS_EV, 3.0, "US gas stations, capped at \$6k/year"),
-                RewardRate(C.ONLINE_SHOPPING, 3.0, "US online retail, capped at \$6k/year"),
+                RewardRate(C.GROCERIES, 3.0, "US supermarkets", capUsd = 6_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0),
+                RewardRate(C.GAS_EV, 3.0, "US gas stations", capUsd = 6_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0),
+                RewardRate(C.ONLINE_SHOPPING, 3.0, "US online retail", capUsd = 6_000, capPeriod = CapPeriod.ANNUAL, fallbackMultiplier = 1.0),
             ),
+            provenance = RuleProvenance("https://www.americanexpress.com/us/credit-cards/card/blue-cash-everyday/", "2026-09-14"),
+            foreignTransactionFeePct = 2.7,
             dataAsOf = AS_OF,
         ),
         CardCatalogEntry(
@@ -209,12 +247,21 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CAPITAL_ONE_MILES,
             baseMultiplier = 2.0,
             categoryRates = listOf(
-                RewardRate(C.HOTELS, 10.0, "Booked via Capital One Travel"),
-                RewardRate(C.AIRFARE, 5.0, "Booked via Capital One Travel"),
+                RewardRate(C.HOTELS, 10.0, "Booked via Capital One Travel", channel = BookingChannel.ISSUER_PORTAL),
+                RewardRate(C.AIRFARE, 5.0, "Booked via Capital One Travel", channel = BookingChannel.ISSUER_PORTAL),
             ),
             credits = listOf(
-                CardCredit("Travel credit", 300, "annual", "Credit toward bookings made through Capital One Travel."),
+                CardCredit("Travel credit", 300, "annual", "Credit toward bookings made through Capital One Travel.", periodBasis = PeriodBasis.ANNIVERSARY, merchantKeywords = listOf("capital one travel"), sourceUrl = "https://www.capitalone.com/credit-cards/venture-x/"),
                 CardCredit("Anniversary bonus miles", 100, "annual", "10,000 bonus miles each account anniversary (~\$100 in travel value)."),
+            ),
+            provenance = RuleProvenance("https://www.capitalone.com/credit-cards/venture-x/", "2026-09-14", "\$300 travel credit and 10,000 anniversary miles reset on the account anniversary."),
+            foreignTransactionFeePct = 0.0,
+            authorizedUserFeeUsd = 0,
+            travelPerks = listOf(
+                TravelPerk(TravelPerk.Kind.LOUNGE, "Capital One Lounges and Priority Pass", "Enrollment required; guest policy changed in 2025 - verify"),
+                TravelPerk(TravelPerk.Kind.RENTAL_CDW, "Primary rental car collision coverage", "Decline the rental company's CDW and pay with the card"),
+                TravelPerk(TravelPerk.Kind.TRIP_DELAY, "Trip delay reimbursement", "When the fare is charged to the card; limits per the benefits guide"),
+                TravelPerk(TravelPerk.Kind.NO_FOREIGN_FEE, "No foreign transaction fees", null),
             ),
             dataAsOf = AS_OF,
             notes = "Also includes Capital One Lounge and Priority Pass access, not modeled as a dollar credit here.",
@@ -276,8 +323,10 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CASH_BACK,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.DINING, 5.0, "Whichever eligible category you spend most in that billing cycle, capped at \$500/cycle - shown here for dining as one example"),
+                RewardRate(C.DINING, 5.0, "Whichever eligible category you spend most in that billing cycle - shown here for dining as one example", capUsd = 500, capPeriod = CapPeriod.STATEMENT_CYCLE, fallbackMultiplier = 1.0),
             ),
+            provenance = RuleProvenance("https://www.citi.com/credit-cards/citi-custom-cash-credit-card", "2026-09-14"),
+            foreignTransactionFeePct = 3.0,
             dataAsOf = AS_OF,
             notes = "5% automatically applies to your top spending category each cycle from a fixed list (dining, groceries, gas, travel, drugstores, home improvement, live entertainment, select streaming, fitness clubs) - only one category per cycle, capped at \$500 spend/cycle.",
         ),
@@ -291,6 +340,9 @@ object CardCatalog {
             baseMultiplier = 1.0,
             categoryRates = emptyList(),
             rotatingKind = RotatingKind.QUARTERLY_ACTIVATION,
+            rotatingCapUsd = 1_500,
+            provenance = RuleProvenance("https://www.discover.com/credit-cards/cash-back/it-card.html", "2026-09-14"),
+            foreignTransactionFeePct = 0.0,
             dataAsOf = AS_OF,
             notes = "5% (multiplier 5.0) in rotating quarterly categories up to \$1,500/quarter after activation, 1% elsewhere - not modeled per-category since it changes every 3 months. New cardholders also get all cash back matched at the end of the first year.",
         ),
@@ -1191,6 +1243,8 @@ object CardCatalog {
             baseMultiplier = 1.0,
             categoryRates = emptyList(),
             rotatingKind = RotatingKind.QUARTERLY_CHOICE,
+            rotatingCapUsd = 2_000,
+            provenance = RuleProvenance("https://www.usbank.com/credit-cards/cash-plus-visa-signature-credit-card.html", "2026-09-14"),
             dataAsOf = AS_OF_2026,
             notes = "5% cash back on 2 categories you choose each quarter (from options like utilities, streaming, gyms, transit; first \$2,000 combined spend/quarter), plus 5% on prepaid travel via the Rewards Center, and 2% on one chosen everyday category (gas, groceries, or restaurants). Not modeled per-category above since the categories are user-selected each quarter.",
         ),
@@ -1332,11 +1386,13 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CHASE_UR,
             baseMultiplier = 1.0,
             categoryRates = listOf(
-                RewardRate(C.OFFICE_SUPPLIES, 5.0, "First \$25,000/account year combined with phone/internet/cable, then 1x"),
-                RewardRate(C.PHONE_INTERNET_CABLE, 5.0, "Same combined cap"),
-                RewardRate(C.GAS_EV, 2.0, "First \$25,000/account year combined with dining, then 1x"),
-                RewardRate(C.DINING, 2.0, "Same combined cap"),
+                RewardRate(C.OFFICE_SUPPLIES, 5.0, "Combined cap with phone/internet/cable", capUsd = 25_000, capPeriod = CapPeriod.ACCOUNT_YEAR, capGroup = "ink5", fallbackMultiplier = 1.0),
+                RewardRate(C.PHONE_INTERNET_CABLE, 5.0, "Combined cap with office supplies", capUsd = 25_000, capPeriod = CapPeriod.ACCOUNT_YEAR, capGroup = "ink5", fallbackMultiplier = 1.0),
+                RewardRate(C.GAS_EV, 2.0, "Combined cap with dining", capUsd = 25_000, capPeriod = CapPeriod.ACCOUNT_YEAR, capGroup = "ink2", fallbackMultiplier = 1.0),
+                RewardRate(C.DINING, 2.0, "Combined cap with gas", capUsd = 25_000, capPeriod = CapPeriod.ACCOUNT_YEAR, capGroup = "ink2", fallbackMultiplier = 1.0),
             ),
+            provenance = RuleProvenance("https://creditcards.chase.com/business-credit-cards/ink/cash", "2026-09-14"),
+            foreignTransactionFeePct = 3.0,
             dataAsOf = AS_OF_2026,
             notes = "Shipping is NOT a bonus category on this card (that's Ink Preferred). Free employee cards.",
         ),
@@ -1472,6 +1528,9 @@ object CardCatalog {
     )
 
     fun findById(id: String): CardCatalogEntry? = entries.firstOrNull { it.id == id }
+
+    /** The terms in force on a given day - past transactions are judged by the rules of their time. */
+    fun findByIdOn(id: String, epochDay: Long): CardCatalogEntry? = findById(id)?.versionFor(epochDay)
 
     /** Simple case-insensitive substring search over display name/issuer, for the "add a card" screen. */
     fun search(query: String): List<CardCatalogEntry> {

@@ -3,6 +3,7 @@ package com.travelbenefits.app.data.local
 import com.travelbenefits.app.data.local.entity.ActivityEventEntity
 import com.travelbenefits.app.data.local.entity.AwardWatchEntity
 import com.travelbenefits.app.data.local.entity.BenefitItemEntity
+import com.travelbenefits.app.data.local.entity.BenefitLedgerEntity
 import com.travelbenefits.app.data.local.entity.RotatingCategoryEntity
 import com.travelbenefits.app.data.local.entity.TransferBonusEntity
 import com.travelbenefits.app.data.local.entity.LoyaltyAccountEntity
@@ -12,6 +13,7 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
 import com.travelbenefits.app.domain.model.ActivityEvent
 import com.travelbenefits.app.domain.model.AwardWatch
 import com.travelbenefits.app.domain.model.BenefitItem
+import com.travelbenefits.app.domain.model.LedgerEntry
 import com.travelbenefits.app.domain.model.RotatingSelection
 import com.travelbenefits.app.domain.model.SpendingCategory
 import com.travelbenefits.app.domain.model.TransferBonus
@@ -201,4 +203,9 @@ fun TransferBonusEntity.toDomain(): TransferBonus = TransferBonus(
     endsEpochDay = endsEpochDay,
     note = note,
     checkedAt = checkedAt,
+)
+
+fun BenefitLedgerEntity.toDomain(): LedgerEntry = LedgerEntry(
+    id = id, walletCardId = walletCardId, creditLabel = creditLabel, kind = kind, amountCents = amountCents, epochDay = epochDay,
+    transactionId = transactionId, note = note, source = source, needsConfirmation = needsConfirmation, createdAt = createdAt,
 )

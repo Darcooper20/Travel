@@ -194,5 +194,35 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    /**
+     * v5 -> v6: amount-based benefit ledger. Existing `credit_usage` rows
+     * become USED_UNKNOWN_AMOUNT entries dated by their last-used timestamp -
+     * the amount is genuinely unknown, so it is flagged, not fabricated.
+     * The old table is kept (harmless, and a rollback aid) but no longer read.
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `benefit_ledger` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`walletCardId` INTEGER NOT NULL, " +
+                    "`creditLabel` TEXT NOT NULL, " +
+                    "`kind` TEXT NOT NULL, " +
+                    "`amountCents` INTEGER NOT NULL, " +
+                    "`epochDay` INTEGER NOT NULL, " +
+                    "`transactionId` TEXT, " +
+                    "`note` TEXT, " +
+                    "`source` TEXT NOT NULL, " +
+                    "`needsConfirmation` INTEGER NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL)",
+            )
+            db.execSQL(
+                "INSERT INTO `benefit_ledger` (`walletCardId`, `creditLabel`, `kind`, `amountCents`, `epochDay`, `transactionId`, `note`, `source`, `needsConfirmation`, `createdAt`) " +
+                    "SELECT `walletCardId`, `creditLabel`, 'USED_UNKNOWN_AMOUNT', 0, `lastUsedAt` / 86400000, NULL, " +
+                    "'Migrated from the old used checkbox; amount was not recorded - edit to add it.', 'MIGRATION', 0, `lastUsedAt` FROM `credit_usage`",
+            )
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 }

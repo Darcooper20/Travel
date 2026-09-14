@@ -20,6 +20,11 @@ datastore = "1.1.1"
 workManager = "2.9.1"
 androidxHilt = "1.2.0"
 plaidLink = "5.5.1"
+junit = "4.13.2"
+kotlinxCoroutinesTest = "1.8.1"
+androidxTestExt = "1.2.1"
+androidxTestRunner = "1.6.2"
+roomTesting = "2.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -53,6 +58,11 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 appauth = { group = "net.openid", name = "appauth", version.ref = "appauth" }
 plaid-link = { group = "com.plaid.link", name = "sdk-core", version.ref = "plaidLink" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExt" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "roomTesting" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

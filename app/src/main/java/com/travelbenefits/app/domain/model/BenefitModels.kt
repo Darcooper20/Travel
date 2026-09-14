@@ -20,23 +20,32 @@ enum class CreditPeriod(val label: String) {
 }
 
 /**
- * A catalog card credit instantiated for one wallet card, with the user's
- * "I used it" state for the current period. Derived, not stored: only the
- * last-used date lives in the database.
+ * A catalog card credit instantiated for one wallet card for the current
+ * period, with amount-based totals from the benefit ledger. Derived, not
+ * stored. Pending never counts as received.
  */
 data class CreditStatus(
     val walletCard: ResolvedWalletCard,
     val credit: CardCredit,
     val period: CreditPeriod,
-    val lastUsedAt: Long?,
-    /** True when the credit hasn't been used within the current period. */
-    val isAvailable: Boolean,
-    /** Last day of the current period, when the unused value is lost. */
-    val periodEndsEpochDay: Long,
-    /** Value at stake this period (monthly credits are the annual figure / 12). */
-    val periodValueUsd: Double,
+    val window: CreditPeriodWindow,
+    val allowanceCents: Long,
+    val receivedCents: Long,
+    val pendingCents: Long,
+    val uncommittedCents: Long,
+    val state: CreditState,
+    val hasUnknownAmountUsage: Boolean,
+    val hasUnconfirmed: Boolean,
+    val entries: List<LedgerEntry>,
 ) {
     val key: String get() = "credit:${walletCard.walletCard.id}:${credit.label}"
+    /** True when part of the allowance is still unspoken for this period. */
+    val isAvailable: Boolean get() = uncommittedCents > 0 && state != CreditState.USED_AMOUNT_UNKNOWN
+    /** Last day of the current period, when the unused value is lost. */
+    val periodEndsEpochDay: Long get() = window.endEpochDay
+    /** Value at stake this period (uncommitted), in dollars. */
+    val periodValueUsd: Double get() = uncommittedCents / 100.0
+    val lastUsedAt: Long? get() = entries.filter { it.kind.consumesAllowance }.maxOfOrNull { it.epochDay * 86_400_000L }
 }
 
 enum class BenefitKind(val label: String) {

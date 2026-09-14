@@ -57,19 +57,88 @@ enum class RewardCurrency(
     GENERIC_POINTS("Points", 1.0),
 }
 
+/** How long a spending cap lasts before it resets. */
+enum class CapPeriod(val label: String) { NONE("no cap"), MONTHLY("per month"), STATEMENT_CYCLE("per statement cycle"), QUARTERLY("per quarter"), ANNUAL("per calendar year"), ACCOUNT_YEAR("per account year") }
+
+/** Whether a rate needs the purchase to go through a specific channel. */
+enum class BookingChannel(val label: String) { ANY("any"), DIRECT("booked directly with the airline/hotel"), ISSUER_PORTAL("booked through the issuer's travel portal") }
+
+/**
+ * A structured earning rule. Unknown conditions stay null (unknown), never
+ * zero or "no cap". [capUsd] is the spend eligible for [multiplier] per
+ * [capPeriod]; spend beyond it earns [fallbackMultiplier] (or the card's
+ * base rate when null). Rates sharing a [capGroup] share one cap.
+ */
 data class RewardRate(
     val category: SpendingCategory,
     /** Points (or % for cash back) earned per dollar spent. */
     val multiplier: Double,
     val note: String? = null,
+    val capUsd: Int? = null,
+    val capPeriod: CapPeriod = CapPeriod.NONE,
+    val capGroup: String? = null,
+    val fallbackMultiplier: Double? = null,
+    val channel: BookingChannel = BookingChannel.ANY,
+    /** True when the rate only applies after activation/enrollment (rotating categories, some 5% offers). */
+    val requiresActivation: Boolean = false,
+    /** Official source for this rule, when it differs from the card's. */
+    val sourceUrl: String? = null,
 )
+
+/** When a credit's allowance resets. UNKNOWN is shown as unknown, never assumed. */
+enum class PeriodBasis(val label: String) { CALENDAR("calendar period"), ANNIVERSARY("card anniversary"), STATEMENT("statement period"), UNKNOWN("reset basis not verified") }
 
 data class CardCredit(
     val label: String,
     val annualValueUsd: Int,
     val frequency: String,
     val description: String,
-)
+    val periodBasis: PeriodBasis = PeriodBasis.UNKNOWN,
+    /** Lower-cased merchant/description keywords that identify eligible charges and the reimbursement line on a statement. */
+    val merchantKeywords: List<String> = emptyList(),
+    val requiresEnrollment: Boolean = false,
+    val sourceUrl: String? = null,
+) {
+    /** Monthly sub-limit parsed from frequencies like "monthly ($10/mo)" or "annual ($15-20/mo)". Null when the credit isn't monthly-limited. */
+    val monthlySublimitUsd: Int?
+        get() = Regex("""\$(\d+)(?:-\d+)?/mo""").find(frequency)?.groupValues?.get(1)?.toIntOrNull()
+}
+
+/** Where a card's terms came from and how fresh they are. */
+data class RuleProvenance(
+    /** Issuer product/terms page. Null when the entry was compiled from secondary research only. */
+    val sourceUrl: String?,
+    /** ISO date the terms were last checked against the source. */
+    val verifiedOn: String,
+    val note: String? = null,
+) {
+    enum class Freshness(val label: String) { VERIFIED("verified recently"), AGING("verify before relying on it"), STALE("stale - may have changed") }
+
+    fun freshness(todayEpochDay: Long = java.time.LocalDate.now().toEpochDay()): Freshness {
+        val verified = runCatching { java.time.LocalDate.parse(verifiedOn).toEpochDay() }.getOrNull() ?: return Freshness.STALE
+        val age = todayEpochDay - verified
+        return when {
+            age <= 180 -> Freshness.VERIFIED
+            age <= 400 -> Freshness.AGING
+            else -> Freshness.STALE
+        }
+    }
+}
+
+/** A non-monetary card perk relevant to trips - lounge, bags, protections - with the condition under which it applies. */
+data class TravelPerk(
+    val kind: Kind,
+    val description: String,
+    /** e.g. "when the full fare is charged to this card"; unknown conditions are stated as unknown. */
+    val condition: String?,
+    val sourceUrl: String? = null,
+) {
+    enum class Kind(val label: String) {
+        LOUNGE("Lounge access"), CHECKED_BAG("Checked bag"), PRIORITY_BOARDING("Priority boarding"), TRIP_DELAY("Trip delay reimbursement"),
+        TRIP_CANCELLATION("Trip cancellation/interruption"), BAGGAGE_DELAY("Baggage delay"), RENTAL_CDW("Rental car collision coverage"),
+        HOTEL_STATUS("Hotel elite status"), TRAVEL_ACCIDENT("Travel accident insurance"), NO_FOREIGN_FEE("No foreign transaction fees"), OTHER("Other"),
+    }
+}
 
 enum class LoyaltyProgramKind(val label: String) {
     HOTEL("Hotels"),
@@ -163,7 +232,41 @@ data class CardCatalogEntry(
     val rotatingKind: RotatingKind? = null,
     /** Multiplier the rotating categories earn (typically 5). */
     val rotatingMultiplier: Double = 5.0,
+    /** Combined spend cap on the rotating categories per quarter, when known. */
+    val rotatingCapUsd: Int? = null,
+    /** Foreign transaction fee as a percentage; null = not verified (treated as unknown, not zero). */
+    val foreignTransactionFeePct: Double? = null,
+    val country: String = "US",
+    /** Terms source and verification date. Defaults are derived from [dataAsOf] and marked approximate. */
+    val provenance: RuleProvenance? = null,
+    /** Date these terms took effect (ISO); null = unknown/original. */
+    val effectiveFrom: String? = null,
+    /** Earlier versions of this card's terms, newest first, each with its own effectiveFrom/effectiveTo window. */
+    val previousVersions: List<CardCatalogEntry> = emptyList(),
+    val effectiveTo: String? = null,
+    val travelPerks: List<TravelPerk> = emptyList(),
+    /** Annual fee for each authorized user, when known; null = unknown. */
+    val authorizedUserFeeUsd: Int? = null,
 ) {
+    /** Effective provenance: explicit, or an approximate date derived from the catalog's dataAsOf wording. */
+    val effectiveProvenance: RuleProvenance
+        get() = provenance ?: RuleProvenance(
+            sourceUrl = null,
+            verifiedOn = if (dataAsOf.contains("2026")) "2026-09-01" else "2025-03-01",
+            note = "Approximate: derived from catalog research pass (\"$dataAsOf\"), not an issuer page check.",
+        )
+
+    /** The version of this entry in force on [epochDay]. Falls back to the current entry when no dated version covers it. */
+    fun versionFor(epochDay: Long): CardCatalogEntry {
+        val from = effectiveFrom?.let { runCatching { java.time.LocalDate.parse(it).toEpochDay() }.getOrNull() }
+        if (from == null || epochDay >= from) return this
+        return previousVersions.firstOrNull { v ->
+            val vFrom = v.effectiveFrom?.let { runCatching { java.time.LocalDate.parse(it).toEpochDay() }.getOrNull() } ?: Long.MIN_VALUE
+            val vTo = v.effectiveTo?.let { runCatching { java.time.LocalDate.parse(it).toEpochDay() }.getOrNull() } ?: Long.MAX_VALUE
+            epochDay in vFrom..vTo
+        } ?: this
+    }
+
     fun rateFor(category: SpendingCategory): RewardRate =
         categoryRates.firstOrNull { it.category == category }
             ?: RewardRate(category, baseMultiplier)

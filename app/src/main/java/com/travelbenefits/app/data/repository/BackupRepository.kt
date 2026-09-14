@@ -2,6 +2,7 @@ package com.travelbenefits.app.data.repository
 
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.BenefitDao
+import com.travelbenefits.app.data.local.dao.BenefitLedgerDao
 import com.travelbenefits.app.data.local.dao.LoyaltyAccountDao
 import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
 import com.travelbenefits.app.data.local.dao.RotatingCategoryDao
@@ -9,13 +10,15 @@ import com.travelbenefits.app.data.local.dao.TripDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
 import com.travelbenefits.app.data.local.entity.AwardWatchEntity
 import com.travelbenefits.app.data.local.entity.BenefitItemEntity
-import com.travelbenefits.app.data.local.entity.CreditUsageEntity
+import com.travelbenefits.app.data.local.entity.BenefitLedgerEntity
 import com.travelbenefits.app.data.local.entity.LoyaltyAccountEntity
 import com.travelbenefits.app.data.local.entity.PointsSnapshotEntity
 import com.travelbenefits.app.data.local.entity.RotatingCategoryEntity
 import com.travelbenefits.app.data.local.entity.TripEntity
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 import com.travelbenefits.app.domain.model.BenefitKind
+import com.travelbenefits.app.domain.model.LedgerEntryKind
+import com.travelbenefits.app.domain.model.LedgerSource
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.TripKind
@@ -41,6 +44,7 @@ class BackupRepository @Inject constructor(
     private val pointsSnapshotDao: PointsSnapshotDao,
     private val tripDao: TripDao,
     private val benefitDao: BenefitDao,
+    private val benefitLedgerDao: BenefitLedgerDao,
     private val rotatingCategoryDao: RotatingCategoryDao,
     private val awardWatchDao: AwardWatchDao,
     private val json: Json,
@@ -53,7 +57,7 @@ class BackupRepository @Inject constructor(
             snapshots = pointsSnapshotDao.getAll().map { SnapshotBackup(it.program.name, it.points, it.tier, it.recordedAt, it.source.name) },
             trips = tripDao.getAll().map { it.toBackup() },
             benefits = benefitDao.getItems().map { it.toBackup() },
-            creditUsage = benefitDao.getCreditUsage().map { CreditUsageBackup(it.walletCardId, it.creditLabel, it.lastUsedAt) },
+            ledger = benefitLedgerDao.getAll().map { LedgerBackup(it.walletCardId, it.creditLabel, it.kind.name, it.amountCents, it.epochDay, it.transactionId, it.note, it.source.name, it.needsConfirmation, it.createdAt) },
             rotating = rotatingCategoryDao.getAll().map { RotatingBackup(it.walletCardId, it.quarterKey, it.categoriesCsv, it.activated) },
             watches = awardWatchDao.getAll().map { it.toBackup() },
         )
@@ -114,7 +118,20 @@ class BackupRepository @Inject constructor(
             val program = b.program?.let { p -> LoyaltyProgram.entries.firstOrNull { it.name == p } }
             if (benefitDao.findItemByTitle(b.title, program?.name) == null) { benefitDao.insertItem(b.toEntity(program, b.walletCardId?.let { idMap[it] })); benefits++ }
         }
-        backup.creditUsage.forEach { u -> idMap[u.walletCardId]?.let { benefitDao.upsertCreditUsage(CreditUsageEntity(it, u.creditLabel, u.lastUsedAt)) } }
+        val existingLedger = benefitLedgerDao.getAll()
+        backup.ledger.forEach { l ->
+            val cardId = idMap[l.walletCardId] ?: return@forEach
+            val duplicate = existingLedger.any { it.walletCardId == cardId && it.creditLabel == l.creditLabel && it.epochDay == l.epochDay && it.amountCents == l.amountCents && it.kind.name == l.kind }
+            if (!duplicate) {
+                benefitLedgerDao.insert(
+                    BenefitLedgerEntity(
+                        walletCardId = cardId, creditLabel = l.creditLabel, kind = runCatching { LedgerEntryKind.valueOf(l.kind) }.getOrDefault(LedgerEntryKind.POSTED),
+                        amountCents = l.amountCents, epochDay = l.epochDay, transactionId = l.transactionId, note = l.note,
+                        source = runCatching { LedgerSource.valueOf(l.source) }.getOrDefault(LedgerSource.MANUAL), needsConfirmation = l.needsConfirmation, createdAt = l.createdAt,
+                    ),
+                )
+            }
+        }
         backup.rotating.forEach { r -> idMap[r.walletCardId]?.let { rotatingCategoryDao.upsert(RotatingCategoryEntity(it, r.quarterKey, r.categoriesCsv, r.activated)) } }
         backup.watches.forEach { w -> awardWatchDao.insert(w.toEntity()) }
         "Imported $cards card(s), $accounts loyalty account(s), $trips new trip(s), $benefits certificate(s)."
@@ -154,14 +171,14 @@ class BackupRepository @Inject constructor(
 
 @Serializable
 private data class Backup(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportedAt: Long,
     val walletCards: List<WalletCardBackup> = emptyList(),
     val loyaltyAccounts: List<LoyaltyAccountBackup> = emptyList(),
     val snapshots: List<SnapshotBackup> = emptyList(),
     val trips: List<TripBackup> = emptyList(),
     val benefits: List<BenefitBackup> = emptyList(),
-    val creditUsage: List<CreditUsageBackup> = emptyList(),
+    val ledger: List<LedgerBackup> = emptyList(),
     val rotating: List<RotatingBackup> = emptyList(),
     val watches: List<WatchBackup> = emptyList(),
 )
@@ -196,7 +213,10 @@ private data class BenefitBackup(
 )
 
 @Serializable
-private data class CreditUsageBackup(val walletCardId: Long, val creditLabel: String, val lastUsedAt: Long)
+private data class LedgerBackup(
+    val walletCardId: Long, val creditLabel: String, val kind: String, val amountCents: Long, val epochDay: Long,
+    val transactionId: String?, val note: String?, val source: String, val needsConfirmation: Boolean, val createdAt: Long,
+)
 
 @Serializable
 private data class RotatingBackup(val walletCardId: Long, val quarterKey: String, val categoriesCsv: String, val activated: Boolean)

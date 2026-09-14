@@ -2,11 +2,9 @@ package com.travelbenefits.app.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.travelbenefits.app.data.local.entity.BenefitItemEntity
-import com.travelbenefits.app.data.local.entity.CreditUsageEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -31,16 +29,4 @@ interface BenefitDao {
 
     @Query("DELETE FROM benefit_items WHERE id = :id")
     suspend fun deleteItem(id: Long)
-
-    @Query("SELECT * FROM credit_usage")
-    fun observeCreditUsage(): Flow<List<CreditUsageEntity>>
-
-    @Query("SELECT * FROM credit_usage")
-    suspend fun getCreditUsage(): List<CreditUsageEntity>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertCreditUsage(usage: CreditUsageEntity)
-
-    @Query("DELETE FROM credit_usage WHERE walletCardId = :walletCardId AND creditLabel = :creditLabel")
-    suspend fun clearCreditUsage(walletCardId: Long, creditLabel: String)
 }

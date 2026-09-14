@@ -3,6 +3,8 @@ package com.travelbenefits.app.data.local
 import androidx.room.TypeConverter
 import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.BenefitKind
+import com.travelbenefits.app.domain.model.LedgerEntryKind
+import com.travelbenefits.app.domain.model.LedgerSource
 import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.model.LoyaltyProgram
@@ -51,4 +53,16 @@ class Converters {
 
     @TypeConverter
     fun toRewardCurrency(value: String): RewardCurrency = RewardCurrency.valueOf(value)
+
+    @TypeConverter
+    fun fromLedgerEntryKind(value: LedgerEntryKind): String = value.name
+
+    @TypeConverter
+    fun toLedgerEntryKind(value: String): LedgerEntryKind = LedgerEntryKind.valueOf(value)
+
+    @TypeConverter
+    fun fromLedgerSource(value: LedgerSource): String = value.name
+
+    @TypeConverter
+    fun toLedgerSource(value: String): LedgerSource = LedgerSource.valueOf(value)
 }

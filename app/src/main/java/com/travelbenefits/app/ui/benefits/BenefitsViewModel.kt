@@ -7,6 +7,7 @@ import com.travelbenefits.app.data.repository.WalletRepository
 import com.travelbenefits.app.domain.model.BenefitItem
 import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.CreditStatus
+import com.travelbenefits.app.domain.model.LedgerEntryKind
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.ui.common.parseUserDate
@@ -27,6 +28,16 @@ data class BenefitsUiState(
     val cards: List<ResolvedWalletCard> = emptyList(),
     val unusedCreditValueUsd: Double = 0.0,
     val expiringSoonCount: Int = 0,
+)
+
+/** Dialog for recording a movement against one credit. */
+data class LedgerEntryFormState(
+    val isOpen: Boolean = false,
+    val credit: CreditStatus? = null,
+    val kind: LedgerEntryKind = LedgerEntryKind.POSTED,
+    val amount: String = "",
+    val date: String = "",
+    val note: String = "",
 )
 
 data class EditBenefitState(
@@ -54,7 +65,7 @@ class BenefitsViewModel @Inject constructor(
     ) { credits, items, cards ->
         val today = LocalDate.now().toEpochDay()
         BenefitsUiState(
-            credits = credits.sortedWith(compareBy({ !it.isAvailable }, { it.periodEndsEpochDay })),
+            credits = credits.sortedWith(compareBy({ !it.isAvailable && it.state != com.travelbenefits.app.domain.model.CreditState.NEEDS_CONFIRMATION }, { it.periodEndsEpochDay })),
             items = items,
             cards = cards,
             unusedCreditValueUsd = credits.filter { it.isAvailable }.sumOf { it.periodValueUsd },
@@ -66,9 +77,33 @@ class BenefitsViewModel @Inject constructor(
     private val _edit = MutableStateFlow(EditBenefitState())
     val editState: StateFlow<EditBenefitState> = _edit.asStateFlow()
 
-    fun toggleCredit(credit: CreditStatus) {
-        viewModelScope.launch { benefitsRepository.markCreditUsed(credit.walletCard.walletCard.id, credit.credit.label, credit.isAvailable) }
+    private val _ledgerForm = MutableStateFlow(LedgerEntryFormState())
+    val ledgerForm: StateFlow<LedgerEntryFormState> = _ledgerForm.asStateFlow()
+
+    fun openLedgerEntry(credit: CreditStatus, kind: LedgerEntryKind = LedgerEntryKind.POSTED) {
+        _ledgerForm.value = LedgerEntryFormState(isOpen = true, credit = credit, kind = kind, amount = "", date = LocalDate.now().toString())
     }
+
+    fun closeLedgerEntry() { _ledgerForm.value = LedgerEntryFormState(isOpen = false) }
+
+    fun updateLedgerEntry(transform: (LedgerEntryFormState) -> LedgerEntryFormState) { _ledgerForm.value = transform(_ledgerForm.value) }
+
+    fun saveLedgerEntry() {
+        val f = _ledgerForm.value
+        val credit = f.credit ?: return
+        val cents = f.amount.replace("$", "").replace(",", "").trim().toDoubleOrNull()?.let { Math.round(it * 100) } ?: return
+        viewModelScope.launch {
+            benefitsRepository.recordLedgerEntry(
+                walletCardId = credit.walletCard.walletCard.id, creditLabel = credit.credit.label, kind = f.kind, amountCents = cents,
+                epochDay = parseUserDate(f.date) ?: LocalDate.now().toEpochDay(), note = f.note.trim().ifBlank { null },
+            )
+            closeLedgerEntry()
+        }
+    }
+
+    fun resolveProposal(id: Long, confirm: Boolean) { viewModelScope.launch { benefitsRepository.resolveProposal(id, confirm) } }
+
+    fun deleteLedgerEntry(id: Long) { viewModelScope.launch { benefitsRepository.deleteLedgerEntry(id) } }
 
     fun toggleItemUsed(item: BenefitItem) {
         viewModelScope.launch { benefitsRepository.setUsed(item.id, !item.isUsed) }

@@ -7,6 +7,7 @@ import com.travelbenefits.app.data.local.Migrations
 import com.travelbenefits.app.data.local.dao.ActivityEventDao
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.BenefitDao
+import com.travelbenefits.app.data.local.dao.BenefitLedgerDao
 import com.travelbenefits.app.data.local.dao.NotifiedAlertDao
 import com.travelbenefits.app.data.local.dao.PlaidDao
 import com.travelbenefits.app.data.local.dao.RotatingCategoryDao
@@ -73,4 +74,7 @@ object DatabaseModule {
 
     @Provides
     fun providePlaidDao(db: AppDatabase): PlaidDao = db.plaidDao()
+
+    @Provides
+    fun provideBenefitLedgerDao(db: AppDatabase): BenefitLedgerDao = db.benefitLedgerDao()
 }

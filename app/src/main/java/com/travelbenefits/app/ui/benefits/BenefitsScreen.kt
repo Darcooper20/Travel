@@ -40,6 +40,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.BenefitItem
 import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.CreditStatus
+import com.travelbenefits.app.domain.model.CreditState
+import com.travelbenefits.app.domain.model.LedgerEntryKind
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.ui.common.DropdownPicker
@@ -53,6 +57,7 @@ import java.time.LocalDate
 fun BenefitsScreen(onBack: () -> Unit, viewModel: BenefitsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
     val edit by viewModel.editState.collectAsState()
+    val ledgerForm by viewModel.ledgerForm.collectAsState()
     val today = LocalDate.now().toEpochDay()
 
     Scaffold(
@@ -78,7 +83,7 @@ fun BenefitsScreen(onBack: () -> Unit, viewModel: BenefitsViewModel = hiltViewMo
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Credit lists come from the card catalog and reset on calendar periods (monthly/annual). Cards with anniversary-based credits may differ - adjust to your card's terms.",
+                        "Amount-based ledger: record eligible charges, pending and posted credits, and reversals. Pending is never shown as received. Reset periods follow each credit's verified basis; assumed periods are marked.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -97,8 +102,33 @@ fun BenefitsScreen(onBack: () -> Unit, viewModel: BenefitsViewModel = hiltViewMo
             if (state.credits.isEmpty()) {
                 item { Text("Add catalog cards on the Cards tab to see their credits here.", style = MaterialTheme.typography.bodySmall) }
             }
-            items(state.credits, key = { it.key }) { credit -> CreditRow(credit, today, onToggle = { viewModel.toggleCredit(credit) }) }
+            items(state.credits, key = { it.key }) { credit ->
+                CreditRow(
+                    credit, today,
+                    onRecord = { kind -> viewModel.openLedgerEntry(credit, kind) },
+                    onResolve = { id, ok -> viewModel.resolveProposal(id, ok) },
+                    onDeleteEntry = { id -> viewModel.deleteLedgerEntry(id) },
+                )
+            }
         }
+    }
+
+    if (ledgerForm.isOpen) {
+        val f = ledgerForm
+        AlertDialog(
+            onDismissRequest = viewModel::closeLedgerEntry,
+            title = { Text(f.credit?.credit?.label ?: "Record") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DropdownPicker(label = "Type", options = listOf(LedgerEntryKind.POSTED, LedgerEntryKind.PENDING, LedgerEntryKind.EXPECTED, LedgerEntryKind.REVERSED, LedgerEntryKind.ADJUSTMENT), selected = f.kind, optionLabel = { it.label }, onSelected = { k -> viewModel.updateLedgerEntry { it.copy(kind = k) } })
+                    OutlinedTextField(value = f.amount, onValueChange = { v -> viewModel.updateLedgerEntry { it.copy(amount = v) } }, label = { Text("Amount (USD)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = f.date, onValueChange = { v -> viewModel.updateLedgerEntry { it.copy(date = v) } }, label = { Text("Date (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = f.note, onValueChange = { v -> viewModel.updateLedgerEntry { it.copy(note = v) } }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(onClick = viewModel::saveLedgerEntry, enabled = f.amount.isNotBlank()) { Text("Save") } },
+            dismissButton = { TextButton(onClick = viewModel::closeLedgerEntry) { Text("Cancel") } },
+        )
     }
 
     if (edit.isOpen) {
@@ -107,27 +137,58 @@ fun BenefitsScreen(onBack: () -> Unit, viewModel: BenefitsViewModel = hiltViewMo
 }
 
 @Composable
-private fun CreditRow(credit: CreditStatus, today: Long, onToggle: () -> Unit) {
+private fun CreditRow(credit: CreditStatus, today: Long, onRecord: (LedgerEntryKind) -> Unit, onResolve: (Long, Boolean) -> Unit, onDeleteEntry: (Long) -> Unit) {
     val daysLeft = credit.periodEndsEpochDay - today
+    val done = credit.state == CreditState.RECEIVED || credit.state == CreditState.USED_AMOUNT_UNKNOWN
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = if (credit.isAvailable) CardDefaults.cardColors() else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = if (done) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) else CardDefaults.cardColors(),
     ) {
-        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = !credit.isAvailable, onCheckedChange = { onToggle() })
-            Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
-                Text(credit.credit.label, style = MaterialTheme.typography.titleSmall)
-                Text(credit.walletCard.displayName + " • " + credit.period.label + " • ~" + formatUsd(credit.periodValueUsd), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(credit.credit.description, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    if (credit.isAvailable) "Unused - period ends ${formatEpochDay(credit.periodEndsEpochDay)} ($daysLeft days)" else "Used this period",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (credit.isAvailable && daysLeft <= 7) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(credit.credit.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(credit.state.label, style = MaterialTheme.typography.labelMedium, color = when (credit.state) {
+                    CreditState.RECEIVED -> MaterialTheme.colorScheme.primary
+                    CreditState.NEEDS_CONFIRMATION, CreditState.USED_AMOUNT_UNKNOWN, CreditState.EXPIRED, CreditState.REVERSED -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                })
+            }
+            Text(credit.walletCard.displayName + " • " + credit.period.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(credit.credit.description, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Allowance ${cents(credit.allowanceCents)} • received ${cents(credit.receivedCents)} • pending ${cents(credit.pendingCents)} • uncommitted ${if (credit.hasUnknownAmountUsage && credit.receivedCents == 0L) "unknown" else cents(credit.uncommittedCents)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "Period ${formatEpochDay(credit.window.startEpochDay)} – ${formatEpochDay(credit.window.endEpochDay)} (${credit.window.basis.label}${if (credit.window.isAssumed) ", assumed" else ""}) • ${if (daysLeft >= 0) "$daysLeft days left" else "ended"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (credit.isAvailable && daysLeft in 0..7) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (credit.credit.requiresEnrollment) Text("Enrollment required before the credit applies.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+            credit.entries.forEach { e ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("${e.kind.label}: ${if (e.kind == LedgerEntryKind.USED_UNKNOWN_AMOUNT) "amount unknown" else cents(e.amountCents)} • ${formatEpochDay(e.epochDay)}" + (if (e.needsConfirmation) " • proposed" else ""), style = MaterialTheme.typography.labelSmall)
+                        e.note?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    if (e.needsConfirmation) {
+                        TextButton(onClick = { onResolve(e.id, true) }) { Text("Confirm") }
+                        TextButton(onClick = { onResolve(e.id, false) }) { Text("Not this") }
+                    } else {
+                        IconButton(onClick = { onDeleteEntry(e.id) }) { Icon(Icons.Filled.Delete, contentDescription = "Remove entry") }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { onRecord(LedgerEntryKind.POSTED) }) { Text("Credit received") }
+                TextButton(onClick = { onRecord(LedgerEntryKind.PENDING) }) { Text("Pending") }
+                TextButton(onClick = { onRecord(LedgerEntryKind.EXPECTED) }) { Text("Charge made") }
             }
         }
     }
 }
+
+private fun cents(c: Long): String = String.format("$%,.2f", c / 100.0)
 
 @Composable
 private fun BenefitRow(item: BenefitItem, today: Long, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
