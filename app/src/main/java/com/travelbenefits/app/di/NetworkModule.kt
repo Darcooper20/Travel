@@ -2,6 +2,7 @@ package com.travelbenefits.app.di
 
 import com.travelbenefits.app.data.remote.anthropic.AnthropicApi
 import com.travelbenefits.app.data.remote.gmail.GmailApi
+import com.travelbenefits.app.data.remote.plaid.PlaidBackendApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -73,4 +74,15 @@ object NetworkModule {
     @Singleton
     fun provideGmailApi(@Named("gmail") retrofit: Retrofit): GmailApi =
         retrofit.create(GmailApi::class.java)
+
+    /** The backend URL is user-configured, so every call passes a full @Url; the base URL here is a placeholder Retrofit requires. */
+    @Provides
+    @Singleton
+    fun providePlaidBackendApi(client: OkHttpClient, json: Json): PlaidBackendApi =
+        Retrofit.Builder()
+            .baseUrl("https://localhost/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(PlaidBackendApi::class.java)
 }

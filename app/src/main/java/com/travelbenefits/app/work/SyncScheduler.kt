@@ -47,6 +47,22 @@ class SyncScheduler @Inject constructor(
         }
     }
 
+    /** Plaid transaction sync every 12 hours while a backend is configured. */
+    fun applyPlaidSchedule(configured: Boolean) {
+        val wm = WorkManager.getInstance(context)
+        if (configured) {
+            wm.enqueueUniquePeriodicWork(
+                PlaidSyncWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<PlaidSyncWorker>(12, TimeUnit.HOURS)
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .build(),
+            )
+        } else {
+            wm.cancelUniqueWork(PlaidSyncWorker.UNIQUE_NAME)
+        }
+    }
+
     /** Runs the local reminder check right away (e.g. after the user changes a date) without waiting for the daily slot. */
     fun runRemindersNow() {
         WorkManager.getInstance(context).enqueueUniqueWork(

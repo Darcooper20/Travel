@@ -9,7 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import com.plaid.link.FastOpenPlaidLink
+import com.plaid.link.Plaid
+import com.plaid.link.configuration.LinkTokenConfiguration
+import com.plaid.link.result.LinkExit
+import com.plaid.link.result.LinkSuccess
 import com.travelbenefits.app.auth.GmailAuthManager
+import com.travelbenefits.app.auth.PlaidLinkCoordinator
 import com.travelbenefits.app.ui.navigation.AppNavHost
 import com.travelbenefits.app.ui.theme.TravelBenefitsTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,9 +28,22 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var gmailAuthManager: GmailAuthManager
 
+    @Inject
+    lateinit var plaidLinkCoordinator: PlaidLinkCoordinator
+
     private val gmailAuthLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data ?: return@registerForActivityResult
         lifecycleScope.launch { gmailAuthManager.handleRedirect(data) }
+    }
+
+    // Registered as a field so the OAuth-bank redirect still lands here after process death.
+    private val plaidLinkLauncher = registerForActivityResult(FastOpenPlaidLink()) { result ->
+        when (result) {
+            is LinkSuccess -> lifecycleScope.launch {
+                plaidLinkCoordinator.onLinkSuccess(result.publicToken, result.metadata.institution?.name)
+            }
+            is LinkExit -> plaidLinkCoordinator.onLinkExit(result.error?.displayMessage)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +63,14 @@ class MainActivity : ComponentActivity() {
                                     "Couldn't open sign-in: ${e.javaClass.simpleName}: ${e.message}",
                                     Toast.LENGTH_LONG,
                                 ).show()
+                            }
+                        },
+                        onLaunchPlaidLink = { linkToken ->
+                            try {
+                                val config = LinkTokenConfiguration.Builder().token(linkToken).build()
+                                plaidLinkLauncher.launch(Plaid.create(application, config))
+                            } catch (e: Exception) {
+                                Toast.makeText(this, "Couldn't open Plaid Link: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
                             }
                         },
                     )

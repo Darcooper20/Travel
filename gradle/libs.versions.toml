@@ -19,6 +19,7 @@ coroutines = "1.8.1"
 datastore = "1.1.1"
 workManager = "2.9.1"
 androidxHilt = "1.2.0"
+plaidLink = "5.5.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +52,7 @@ okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-i
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 appauth = { group = "net.openid", name = "appauth", version.ref = "appauth" }
+plaid-link = { group = "com.plaid.link", name = "sdk-core", version.ref = "plaidLink" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

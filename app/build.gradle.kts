@@ -140,4 +140,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.appauth)
+    implementation(libs.plaid.link)
 }

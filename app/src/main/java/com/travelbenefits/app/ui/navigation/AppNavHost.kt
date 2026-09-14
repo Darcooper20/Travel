@@ -25,7 +25,7 @@ import com.travelbenefits.app.ui.trips.TripsScreen
 import com.travelbenefits.app.ui.wallet.WalletScreen
 
 @Composable
-fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
+fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) -> Unit) {
     val navController = rememberNavController()
 
     fun navigateTab(route: String) {
@@ -77,7 +77,7 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
             composable(Screen.Optimize.route) { OptimizeScreen() }
             composable(Screen.Wallet.route) { WalletScreen() }
             composable(Screen.Settings.route) {
-                SettingsScreen(onLaunchGmailAuth = onLaunchGmailAuth, onBack = { navController.popBackStack() })
+                SettingsScreen(onLaunchGmailAuth = onLaunchGmailAuth, onLaunchPlaidLink = onLaunchPlaidLink, onBack = { navController.popBackStack() })
             }
         }
     }

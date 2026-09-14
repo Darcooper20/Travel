@@ -6,6 +6,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.travelbenefits.app.data.repository.BackupRepository
+import com.travelbenefits.app.auth.PlaidLinkCoordinator
+import com.travelbenefits.app.domain.model.ResolvedWalletCard
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,10 +56,12 @@ import com.travelbenefits.app.work.SyncScheduler
 @Composable
 fun SettingsScreen(
     onLaunchGmailAuth: (Intent) -> Unit,
+    onLaunchPlaidLink: (String) -> Unit,
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val plaid by viewModel.plaidState.collectAsState()
     val sync by viewModel.syncSettings.collectAsState()
     val isGmailConnected by viewModel.isGmailConnected.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -75,6 +80,19 @@ fun SettingsScreen(
         message?.let {
             snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long)
             viewModel.dismissMessage()
+        }
+    }
+    LaunchedEffect(plaid.linkState) {
+        when (val l = plaid.linkState) {
+            is PlaidLinkCoordinator.LinkState.Linked -> {
+                snackbarHostState.showSnackbar("Linked ${l.item.institutionName ?: "account"} with ${l.item.accounts.size} account(s). Map each card account below, then Sync now.", duration = SnackbarDuration.Long)
+                viewModel.acknowledgePlaidLink()
+            }
+            is PlaidLinkCoordinator.LinkState.Failed -> {
+                snackbarHostState.showSnackbar(l.message, duration = SnackbarDuration.Long)
+                viewModel.acknowledgePlaidLink()
+            }
+            else -> Unit
         }
     }
 
@@ -146,6 +164,55 @@ fun SettingsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = viewModel::resetScanHistory) { Text("Re-scan from scratch") }
                         TextButton(onClick = viewModel::clearActivity) { Text("Clear activity feed") }
+                    }
+                }
+            }
+            item {
+                SectionCard(title = "Bank & card transactions (Plaid)") {
+                    Text(
+                        "Links your card accounts through a tiny backend you host (see plaid-backend/README.md) so the app can see real spend per card and category, judge it against your wallet, and track welcome-bonus progress. Plaid returns transactions, not points balances.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = state.plaidBackendUrl,
+                        onValueChange = viewModel::onPlaidBackendUrlChange,
+                        label = { Text("Backend URL (https://….workers.dev)") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = state.plaidAppToken,
+                        onValueChange = viewModel::onPlaidAppTokenChange,
+                        label = { Text("APP_TOKEN") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(
+                            onClick = { viewModel.startPlaidLink(onLaunchPlaidLink) },
+                            enabled = state.plaidBackendUrl.isNotBlank() && state.plaidAppToken.isNotBlank() && !plaid.isBusy && plaid.linkState !is PlaidLinkCoordinator.LinkState.Exchanging,
+                        ) { Text("Link an account") }
+                        if (plaid.items.isNotEmpty()) OutlinedButton(onClick = viewModel::syncPlaidNow, enabled = !plaid.isBusy) { Text("Sync now") }
+                        if (plaid.isBusy || plaid.linkState is PlaidLinkCoordinator.LinkState.Exchanging) androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.padding(start = 4.dp).height(20.dp))
+                    }
+                    if (plaid.items.isNotEmpty()) Text("${plaid.transactionCount} transactions stored (last ~400 days).", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    plaid.items.forEach { item ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(item.institutionName ?: item.itemId.take(12), style = MaterialTheme.typography.titleSmall)
+                                TextButton(onClick = { viewModel.removePlaidItem(item.itemId) }) { Text("Unlink") }
+                            }
+                            item.lastError?.let { Text("Last sync error: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
+                            item.accounts.forEach { account ->
+                                val cardOptions: List<ResolvedWalletCard?> = listOf<ResolvedWalletCard?>(null) + plaid.cards
+                                DropdownPicker(
+                                    label = account.label,
+                                    options = cardOptions,
+                                    selected = plaid.cards.firstOrNull { it.walletCard.id == account.walletCardId },
+                                    optionLabel = { it?.displayName ?: "Not a wallet card / ignore" },
+                                    onSelected = { c -> viewModel.mapPlaidAccount(account.accountId, c?.walletCard?.id) },
+                                )
+                            }
+                        }
                     }
                 }
             }

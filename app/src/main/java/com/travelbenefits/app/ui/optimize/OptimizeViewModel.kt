@@ -7,6 +7,10 @@ import com.travelbenefits.app.data.catalog.TransferPartnerCatalog
 import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.data.repository.PointsAdvisorRepository
 import com.travelbenefits.app.data.repository.ResearchRepository
+import com.travelbenefits.app.data.repository.PlaidRepository
+import com.travelbenefits.app.domain.SpendAnalyzer
+import com.travelbenefits.app.domain.model.SpendPeriod
+import com.travelbenefits.app.domain.model.SpendReport
 import com.travelbenefits.app.domain.LoyaltyInsights
 import com.travelbenefits.app.domain.model.AwardWatch
 import com.travelbenefits.app.domain.model.TransferBonus
@@ -77,6 +81,15 @@ data class BalanceBuys(
     val bandNote: String?,
 )
 
+data class SpendUiState(
+    val period: SpendPeriod = SpendPeriod.LAST_MONTH,
+    val report: SpendReport? = null,
+    val isConfigured: Boolean = false,
+    val hasAccounts: Boolean = false,
+    val isSyncing: Boolean = false,
+    val message: String? = null,
+)
+
 data class WatchUiState(
     val watches: List<AwardWatch> = emptyList(),
     val isChecking: Boolean = false,
@@ -115,13 +128,50 @@ class OptimizeViewModel @Inject constructor(
     private val insights: LoyaltyInsights,
     private val appPrefs: AppPrefs,
     private val syncScheduler: com.travelbenefits.app.work.SyncScheduler,
+    private val plaidRepository: PlaidRepository,
+    private val spendAnalyzer: SpendAnalyzer,
 ) : ViewModel() {
+
 
     val cards: StateFlow<List<ResolvedWalletCard>> = walletRepository.observeResolvedCards()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val accounts: StateFlow<List<LoyaltyAccount>> = loyaltyRepository.observeAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ---- Spend (Plaid) ----
+    private val spendPeriod = MutableStateFlow(SpendPeriod.LAST_MONTH)
+    private val spendSyncing = MutableStateFlow(false)
+    private val spendMessage = MutableStateFlow<String?>(null)
+
+    val spendState: StateFlow<SpendUiState> = combine(
+        combine(plaidRepository.observeTransactions(), plaidRepository.observeAccounts(), cards) { t, a, c -> Triple(t, a, c) },
+        spendPeriod,
+        spendSyncing,
+        spendMessage,
+    ) { (txns, accounts, cards), period, syncing, message ->
+        SpendUiState(
+            period = period,
+            report = if (accounts.isEmpty()) null else spendAnalyzer.analyze(txns, accounts, cards, period),
+            isConfigured = plaidRepository.isConfigured,
+            hasAccounts = accounts.isNotEmpty(),
+            isSyncing = syncing,
+            message = message,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SpendUiState())
+
+    fun selectSpendPeriod(period: SpendPeriod) { spendPeriod.value = period }
+
+    fun syncSpendNow() {
+        if (spendSyncing.value) return
+        viewModelScope.launch {
+            spendSyncing.value = true
+            spendMessage.value = plaidRepository.syncAll().fold({ it.summary() }, { it.message ?: "Sync failed." })
+            spendSyncing.value = false
+        }
+    }
+
+    fun clearSpendMessage() { spendMessage.value = null }
 
     // ---- Earn ----
     private val earnCategory = MutableStateFlow(SpendingCategory.HOTELS)

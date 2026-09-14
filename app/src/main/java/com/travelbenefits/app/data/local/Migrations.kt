@@ -152,5 +152,47 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    /** v4 -> v5: Plaid items, accounts and transactions. */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `plaid_items` (" +
+                    "`itemId` TEXT NOT NULL, " +
+                    "`institutionName` TEXT, " +
+                    "`cursor` TEXT, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "`lastSyncAt` INTEGER, " +
+                    "`lastError` TEXT, " +
+                    "PRIMARY KEY(`itemId`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `plaid_accounts` (" +
+                    "`accountId` TEXT NOT NULL, " +
+                    "`itemId` TEXT NOT NULL, " +
+                    "`name` TEXT NOT NULL, " +
+                    "`officialName` TEXT, " +
+                    "`mask` TEXT, " +
+                    "`type` TEXT, " +
+                    "`subtype` TEXT, " +
+                    "`walletCardId` INTEGER, " +
+                    "PRIMARY KEY(`accountId`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `transactions` (" +
+                    "`transactionId` TEXT NOT NULL, " +
+                    "`accountId` TEXT NOT NULL, " +
+                    "`amount` REAL NOT NULL, " +
+                    "`epochDay` INTEGER NOT NULL, " +
+                    "`name` TEXT NOT NULL, " +
+                    "`merchantName` TEXT, " +
+                    "`pfcPrimary` TEXT, " +
+                    "`pfcDetailed` TEXT, " +
+                    "`spendingCategory` TEXT, " +
+                    "`pending` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`transactionId`))",
+            )
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }

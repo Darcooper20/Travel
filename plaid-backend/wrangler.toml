@@ -1,0 +1,21 @@
+name = "travel-benefits-plaid"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Create the namespace once with `wrangler kv namespace create ITEMS` and
+# paste the id it prints here.
+[[kv_namespaces]]
+binding = "ITEMS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+PLAID_ENV = "production"          # "sandbox" while testing
+ANDROID_PACKAGE_NAME = "com.travelbenefits.app.debug"
+COUNTRY_CODE = "US"
+DAYS_REQUESTED = "90"
+CLIENT_USER_ID = "owner"
+
+# Secrets are NOT in this file. Set them with:
+#   wrangler secret put PLAID_CLIENT_ID
+#   wrangler secret put PLAID_SECRET
+#   wrangler secret put APP_TOKEN      # any long random string; paste the same value into the app's Settings

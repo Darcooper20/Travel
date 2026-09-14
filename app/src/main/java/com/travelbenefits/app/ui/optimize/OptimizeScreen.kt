@@ -64,8 +64,9 @@ import com.travelbenefits.app.ui.common.formatUsd
 import com.travelbenefits.app.ui.common.formatEpochDay
 import com.travelbenefits.app.ui.common.formatRelative
 import com.travelbenefits.app.domain.model.AwardWatch
+import com.travelbenefits.app.domain.model.SpendPeriod
 
-private val tabs = listOf("Earn", "Redeem", "Transfer", "Watch", "Ask")
+private val tabs = listOf("Spend", "Earn", "Redeem", "Transfer", "Watch", "Ask")
 
 /** Programs that card points can actually be earned into or transferred to - shops/dining never qualify. */
 private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries.filter { it.kind != LoyaltyProgramKind.SHOP }
@@ -73,7 +74,7 @@ private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries.filter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OptimizeScreen(viewModel: OptimizeViewModel = hiltViewModel()) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(1) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Maximize points") }) }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -83,11 +84,93 @@ fun OptimizeScreen(viewModel: OptimizeViewModel = hiltViewModel()) {
                 }
             }
             when (tab) {
-                0 -> EarnTab(viewModel)
-                1 -> RedeemTab(viewModel)
-                2 -> TransferTab(viewModel)
-                3 -> WatchTab(viewModel)
+                0 -> SpendTab(viewModel)
+                1 -> EarnTab(viewModel)
+                2 -> RedeemTab(viewModel)
+                3 -> TransferTab(viewModel)
+                4 -> WatchTab(viewModel)
                 else -> AskTab(viewModel)
+            }
+        }
+    }
+}
+
+// --------------------------------------------------------------- Spend
+
+@Composable
+private fun SpendTab(viewModel: OptimizeViewModel) {
+    val state by viewModel.spendState.collectAsState()
+    var expandedCategory by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+        if (!state.isConfigured || !state.hasAccounts) {
+            item {
+                CaveatCard(
+                    if (!state.isConfigured) {
+                        "Link your card accounts through Plaid (Settings → Bank & card transactions) and this tab shows real spend per category, which card it went on, and what the best card in your wallet would have earned instead."
+                    } else {
+                        "Backend configured. Link an account in Settings, map it to a wallet card, then sync."
+                    },
+                )
+            }
+            return@LazyColumn
+        }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                DropdownPicker(label = "Period", options = SpendPeriod.entries, selected = state.period, optionLabel = { it.label }, onSelected = viewModel::selectSpendPeriod, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                if (state.isSyncing) CircularProgressIndicator(modifier = Modifier.size(20.dp)) else TextButton(onClick = viewModel::syncSpendNow) { Text("Sync") }
+            }
+            state.message?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        val report = state.report ?: return@LazyColumn
+        item {
+            val headline = report.headline
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (report.missedTotalUsd > 5) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (headline != null && headline.misroutedUsd > 0) {
+                            "You put ${formatUsd(headline.misroutedUsd)} of ${headline.category.label.lowercase()} on the wrong card"
+                        } else {
+                            "Spend is on the right cards"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "${report.period.label}: ${formatUsd(report.totalSpendUsd)} across ${report.transactionCount} purchases earned ~${formatUsd(report.earnedTotalUsd)}; " +
+                            "the best card per category would have earned ~${formatUsd(report.earnedTotalUsd + report.missedTotalUsd)} (${formatUsd(report.missedTotalUsd)} left on the table).",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (report.unmappedSpendUsd > 0) {
+                        Text("${formatUsd(report.unmappedSpendUsd)} came from accounts not mapped to a wallet card - map them in Settings to judge that spend.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("Estimates from catalog earn rates and the app's point valuations, not the issuer's actual posting.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        items(report.categories, key = { it.category.name }) { cat ->
+            val expanded = expandedCategory == cat.category.name
+            Card(onClick = { expandedCategory = if (expanded) null else cat.category.name }, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(cat.category.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Text(formatUsd(cat.spendUsd), style = MaterialTheme.typography.titleSmall)
+                    }
+                    Text(
+                        if (cat.missedUsd > 0.5) "~${formatUsd(cat.missedUsd)} missed • best: ${cat.bestCard?.displayName ?: "-"} (${cat.bestMultiplierLabel})" else "On the best card" + (cat.bestCard?.let { " (${it.displayName}, ${cat.bestMultiplierLabel})" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (cat.missedUsd > 0.5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
+                    if (expanded) {
+                        cat.byCard.forEach { cs ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${cs.accountLabel} (${cs.multiplierLabel})", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                Text("${formatUsd(cs.spendUsd)} → ~${formatUsd(cs.valueEarnedUsd)}", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

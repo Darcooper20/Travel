@@ -7,6 +7,9 @@ import com.travelbenefits.app.data.local.AppPrefs
 import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.repository.ActivityRepository
 import com.travelbenefits.app.data.repository.BenefitsRepository
+import com.travelbenefits.app.data.repository.PlaidRepository
+import com.travelbenefits.app.domain.SpendAnalyzer
+import com.travelbenefits.app.domain.model.SpendPeriod
 import com.travelbenefits.app.data.repository.EmailMonitorRepository
 import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.data.repository.TripRepository
@@ -70,6 +73,8 @@ class DashboardViewModel @Inject constructor(
     walletRepository: WalletRepository,
     private val activityRepository: ActivityRepository,
     benefitsRepository: BenefitsRepository,
+    plaidRepository: PlaidRepository,
+    spendAnalyzer: SpendAnalyzer,
     private val emailMonitorRepository: EmailMonitorRepository,
     private val insights: LoyaltyInsights,
     private val appPrefs: AppPrefs,
@@ -81,6 +86,19 @@ class DashboardViewModel @Inject constructor(
     val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
 
     private val benefitsFlow = combine(benefitsRepository.observeCreditStatuses(), benefitsRepository.observeItems()) { credits, items -> credits to items }
+
+    private val spendAlertFlow = combine(plaidRepository.observeTransactions(), plaidRepository.observeAccounts(), walletRepository.observeResolvedCards()) { txns, accounts, cards ->
+        if (accounts.isEmpty()) return@combine null
+        val report = spendAnalyzer.analyze(txns, accounts, cards, SpendPeriod.LAST_MONTH)
+        val top = report.headline ?: return@combine null
+        if (report.missedTotalUsd < 5.0) return@combine null
+        Alert(
+            Alert.Severity.INFO,
+            "Last month: ~$${"%,.0f".format(report.missedTotalUsd)} left on the table",
+            "${"$%,.0f".format(top.misroutedUsd)} of ${top.category.label.lowercase()} went on a card other than ${top.bestCard?.displayName ?: "your best card"} (${top.bestMultiplierLabel}). See the Spend tab.",
+            destination = Alert.Destination.OPTIMIZE,
+        )
+    }
 
     private val core = combine(
         loyaltyRepository.observeAccounts(),
@@ -113,7 +131,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<DashboardUiState> = combine(
-        core,
+        combine(core, spendAlertFlow) { state, spendAlert -> if (spendAlert == null) state else state.copy(alerts = state.alerts + spendAlert) },
         appPrefs.lastSyncAt,
         appPrefs.lastSyncSummary,
         appPrefs.syncSettings,

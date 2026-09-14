@@ -45,6 +45,12 @@ Gmail - with tools to squeeze the most out of your points.
   "activated" flag and an AI lookup, feeding the best-card picker.
 - **Household members** - loyalty accounts and cards can be tagged with a
   family member's name and are grouped by person.
+- **Spend analysis (Plaid, optional)** - link card accounts through a tiny
+  self-hosted worker (`plaid-backend/`), and the Spend tab shows real spend
+  per category, which card it went on, and what the best card in your
+  wallet would have earned: "you put $1,200 of dining on the wrong card,
+  ~$36 left on the table". Mapped cards also get exact welcome-bonus
+  progress. Plaid returns transactions, not points balances.
 - **Backup** - JSON export/import of everything and a CSV balance sheet;
   no cloud copy exists, so export now and then.
 - **Maximize points**
@@ -76,8 +82,13 @@ calls this app makes are:
 2. To **Google's OAuth and Gmail APIs** - only after you explicitly connect
    Gmail, using a **read-only** scope (`gmail.readonly`). The app never
    sends, deletes, labels, or modifies anything in your inbox.
+3. To **your own Plaid worker** (and, via Plaid Link, to Plaid) - only if
+   you set it up. See `plaid-backend/README.md`.
 
-No backend, no account system, no analytics/tracking SDKs.
+No account system, no analytics/tracking SDKs. The only backend is the
+optional Plaid worker you host yourself (needed because Plaid's API secret
+can't live in an APK); without it, everything still works minus the Spend
+tab.
 
 ## Getting a build without installing Android Studio
 

@@ -20,6 +20,9 @@ class TravelBenefitsApp : Application(), Configuration.Provider {
     @Inject
     lateinit var appNotifier: AppNotifier
 
+    @Inject
+    lateinit var securePrefs: com.travelbenefits.app.data.local.SecurePrefs
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -32,5 +35,6 @@ class TravelBenefitsApp : Application(), Configuration.Provider {
         // background sync is off), so a reinstall/update never silently
         // stops monitoring.
         syncScheduler.applyCurrentSettings()
+        syncScheduler.applyPlaidSchedule(!securePrefs.plaidBackendUrl.isNullOrBlank() && !securePrefs.plaidAppToken.isNullOrBlank())
     }
 }

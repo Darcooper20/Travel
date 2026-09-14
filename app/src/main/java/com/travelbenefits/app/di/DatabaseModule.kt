@@ -8,6 +8,7 @@ import com.travelbenefits.app.data.local.dao.ActivityEventDao
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.BenefitDao
 import com.travelbenefits.app.data.local.dao.NotifiedAlertDao
+import com.travelbenefits.app.data.local.dao.PlaidDao
 import com.travelbenefits.app.data.local.dao.RotatingCategoryDao
 import com.travelbenefits.app.data.local.dao.TransferBonusDao
 import com.travelbenefits.app.data.local.dao.CardLookupCacheDao
@@ -69,4 +70,7 @@ object DatabaseModule {
 
     @Provides
     fun provideNotifiedAlertDao(db: AppDatabase): NotifiedAlertDao = db.notifiedAlertDao()
+
+    @Provides
+    fun providePlaidDao(db: AppDatabase): PlaidDao = db.plaidDao()
 }

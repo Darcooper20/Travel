@@ -135,6 +135,15 @@ class WalletRepository @Inject constructor(
         return true
     }
 
+    /** Overwrites bonus progress with a transaction-derived total (Plaid), which beats statement-email accumulation. */
+    suspend fun setBonusSpendFromTransactions(id: Long, spentUsd: Long, requiredUsd: Long) {
+        val existing = walletCardDao.findById(id) ?: return
+        val earnedAt = existing.bonusEarnedAt ?: if (spentUsd >= requiredUsd) System.currentTimeMillis() else null
+        if (existing.bonusSpendToDateUsd != spentUsd || existing.bonusEarnedAt != earnedAt) {
+            walletCardDao.update(existing.copy(bonusSpendToDateUsd = spentUsd, bonusEarnedAt = earnedAt))
+        }
+    }
+
     fun observeRotatingSelections(): Flow<List<RotatingSelection>> =
         rotatingCategoryDao.observeAll().map { list -> list.map { it.toDomain() } }
 

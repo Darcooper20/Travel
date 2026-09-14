@@ -46,6 +46,16 @@ class SecurePrefs @Inject constructor(@ApplicationContext context: Context) {
         get() = prefs.getString(KEY_GMAIL_ACCOUNT_EMAIL, null)
         set(value) = prefs.edit().putString(KEY_GMAIL_ACCOUNT_EMAIL, value).apply()
 
+    /** URL of the self-hosted Plaid backend worker (plaid-backend/), e.g. https://travel-benefits-plaid.you.workers.dev */
+    var plaidBackendUrl: String?
+        get() = prefs.getString(KEY_PLAID_BACKEND_URL, null)
+        set(value) = prefs.edit().putString(KEY_PLAID_BACKEND_URL, value).apply()
+
+    /** Shared bearer token (APP_TOKEN) the backend expects. */
+    var plaidAppToken: String?
+        get() = prefs.getString(KEY_PLAID_APP_TOKEN, null)
+        set(value) = prefs.edit().putString(KEY_PLAID_APP_TOKEN, value).apply()
+
     fun clearGmailAuth() {
         prefs.edit()
             .remove(KEY_GMAIL_AUTH_STATE)
@@ -58,5 +68,7 @@ class SecurePrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_GOOGLE_CLIENT_ID = "google_oauth_client_id"
         const val KEY_GMAIL_AUTH_STATE = "gmail_auth_state"
         const val KEY_GMAIL_ACCOUNT_EMAIL = "gmail_account_email"
+        const val KEY_PLAID_BACKEND_URL = "plaid_backend_url"
+        const val KEY_PLAID_APP_TOKEN = "plaid_app_token"
     }
 }

@@ -9,6 +9,12 @@ import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.local.SyncSettings
 import com.travelbenefits.app.data.repository.ActivityRepository
 import com.travelbenefits.app.data.repository.BackupRepository
+import com.travelbenefits.app.data.repository.PlaidRepository
+import com.travelbenefits.app.data.repository.WalletRepository
+import com.travelbenefits.app.auth.PlaidLinkCoordinator
+import com.travelbenefits.app.domain.model.PlaidItem
+import com.travelbenefits.app.domain.model.ResolvedWalletCard
+import kotlinx.coroutines.flow.combine
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,6 +36,16 @@ data class SettingsUiState(
     val anthropicApiKey: String = "",
     val googleClientId: String = "",
     val gmailAccountEmail: String? = null,
+    val plaidBackendUrl: String = "",
+    val plaidAppToken: String = "",
+)
+
+data class PlaidUiState(
+    val items: List<PlaidItem> = emptyList(),
+    val cards: List<ResolvedWalletCard> = emptyList(),
+    val linkState: PlaidLinkCoordinator.LinkState = PlaidLinkCoordinator.LinkState.Idle,
+    val isBusy: Boolean = false,
+    val transactionCount: Int = 0,
 )
 
 @HiltViewModel
@@ -42,14 +58,74 @@ class SettingsViewModel @Inject constructor(
     private val activityRepository: ActivityRepository,
     private val appNotifier: AppNotifier,
     private val backupRepository: BackupRepository,
+    private val plaidRepository: PlaidRepository,
+    private val plaidLinkCoordinator: PlaidLinkCoordinator,
+    walletRepository: WalletRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private val plaidBusy = MutableStateFlow(false)
+    val plaidState: StateFlow<PlaidUiState> = combine(
+        plaidRepository.observeItems(),
+        walletRepository.observeResolvedCards(),
+        plaidLinkCoordinator.state,
+        plaidBusy,
+        plaidRepository.observeTransactionCount(),
+    ) { items, cards, link, busy, count -> PlaidUiState(items, cards, link, busy, count) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlaidUiState())
+
+    fun onPlaidBackendUrlChange(value: String) {
+        _uiState.value = _uiState.value.copy(plaidBackendUrl = value)
+        securePrefs.plaidBackendUrl = value.trim().ifBlank { null }
+        syncScheduler.applyPlaidSchedule(plaidRepository.isConfigured)
+    }
+
+    fun onPlaidAppTokenChange(value: String) {
+        _uiState.value = _uiState.value.copy(plaidAppToken = value)
+        securePrefs.plaidAppToken = value.trim().ifBlank { null }
+        syncScheduler.applyPlaidSchedule(plaidRepository.isConfigured)
+    }
+
+    /** Fetches a link token from the backend and hands it to the Activity to open Plaid Link. */
+    fun startPlaidLink(launch: (String) -> Unit) {
+        viewModelScope.launch {
+            plaidBusy.value = true
+            plaidRepository.createLinkToken().fold(
+                onSuccess = { token -> plaidLinkCoordinator.reset(); launch(token) },
+                onFailure = { _message.value = "Couldn't get a link token: ${it.message}" },
+            )
+            plaidBusy.value = false
+        }
+    }
+
+    fun acknowledgePlaidLink() = plaidLinkCoordinator.reset()
+
+    fun mapPlaidAccount(accountId: String, walletCardId: Long?) {
+        viewModelScope.launch { plaidRepository.mapAccount(accountId, walletCardId) }
+    }
+
+    fun removePlaidItem(itemId: String) {
+        viewModelScope.launch {
+            plaidRepository.removeItem(itemId).onFailure { _message.value = "Couldn't remove: ${it.message}" }
+        }
+    }
+
+    fun syncPlaidNow() {
+        if (plaidBusy.value) return
+        viewModelScope.launch {
+            plaidBusy.value = true
+            _message.value = plaidRepository.syncAll().fold({ it.summary() }, { "Sync failed: ${it.message}" })
+            plaidBusy.value = false
+        }
+    }
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
             anthropicApiKey = securePrefs.anthropicApiKey.orEmpty(),
             googleClientId = securePrefs.googleOAuthClientId.orEmpty(),
             gmailAccountEmail = securePrefs.gmailAccountEmail,
+            plaidBackendUrl = securePrefs.plaidBackendUrl.orEmpty(),
+            plaidAppToken = securePrefs.plaidAppToken.orEmpty(),
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
