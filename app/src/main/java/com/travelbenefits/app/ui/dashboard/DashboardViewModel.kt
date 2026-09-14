@@ -15,6 +15,10 @@ import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.data.repository.TripRepository
 import com.travelbenefits.app.data.repository.WalletRepository
 import com.travelbenefits.app.domain.LoyaltyInsights
+import com.travelbenefits.app.domain.ActionEngine
+import com.travelbenefits.app.domain.model.ActionItem
+import com.travelbenefits.app.domain.model.ActionState
+import com.travelbenefits.app.data.repository.OverrideRepository
 import com.travelbenefits.app.domain.model.ActivityEvent
 import com.travelbenefits.app.domain.model.Alert
 import com.travelbenefits.app.domain.model.LoyaltyAccount
@@ -50,6 +54,7 @@ data class DashboardUiState(
     val unusedCreditCount: Int = 0,
     val upcomingTrips: List<Trip> = emptyList(),
     val alerts: List<Alert> = emptyList(),
+    val actions: List<ActionItem> = emptyList(),
     val activity: List<ActivityEvent> = emptyList(),
     val unreadActivity: Int = 0,
     val lastSyncAt: Long = 0,
@@ -68,14 +73,16 @@ sealed class SyncUiState {
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    loyaltyRepository: LoyaltyRepository,
+    private val loyaltyRepository: LoyaltyRepository,
     tripRepository: TripRepository,
-    walletRepository: WalletRepository,
+    private val walletRepository: WalletRepository,
     private val activityRepository: ActivityRepository,
-    benefitsRepository: BenefitsRepository,
-    plaidRepository: PlaidRepository,
+    private val benefitsRepository: BenefitsRepository,
+    private val plaidRepository: PlaidRepository,
     spendAnalyzer: SpendAnalyzer,
     private val emailMonitorRepository: EmailMonitorRepository,
+    private val actionEngine: ActionEngine,
+    private val overrideRepository: OverrideRepository,
     private val insights: LoyaltyInsights,
     private val appPrefs: AppPrefs,
     private val securePrefs: SecurePrefs,
@@ -130,14 +137,30 @@ class DashboardViewModel @Inject constructor(
         )
     }
 
-    val uiState: StateFlow<DashboardUiState> = combine(
+    private val actionInputs = combine(
         combine(core, spendAlertFlow) { state, spendAlert -> if (spendAlert == null) state else state.copy(alerts = state.alerts + spendAlert) },
+        combine(loyaltyRepository.observeAccounts(), walletRepository.observeResolvedCards(), benefitsRepository.observeCreditStatuses()) { a, c, cr -> Triple(a, c, cr) },
+        plaidRepository.observeItems(),
+        overrideRepository.observeActionStates(),
+    ) { state, (accounts, cards, credits), plaidItems, states -> Triple(state, Triple(accounts, cards, credits), plaidItems to states) }
+
+    val uiState: StateFlow<DashboardUiState> = combine(
+        actionInputs,
         appPrefs.lastSyncAt,
         appPrefs.lastSyncSummary,
         appPrefs.syncSettings,
         gmailAuthManager.isSignedIn,
-    ) { state, lastSync, summary, settings, gmail ->
+    ) { (state, acc, extra), lastSync, summary, settings, gmail ->
+        val (accounts, cards, credits) = acc
+        val (plaidItems, states) = extra
+        val actions = actionEngine.build(
+            ActionEngine.Inputs(
+                alerts = state.alerts, cards = cards, accounts = accounts, credits = credits, plaidItems = plaidItems,
+                gmailConnected = gmail, autoSyncEnabled = settings.autoSyncEnabled, lastGmailSyncAt = lastSync, states = states,
+            ),
+        )
         state.copy(
+            actions = actions,
             lastSyncAt = lastSync,
             lastSyncSummary = summary,
             autoSyncEnabled = settings.autoSyncEnabled,
@@ -145,6 +168,23 @@ class DashboardViewModel @Inject constructor(
             hasAnthropicKey = !securePrefs.anthropicApiKey.isNullOrBlank(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
+
+    private val _lastActionChange = MutableStateFlow<String?>(null)
+    /** Key of the last action whose state changed, for the undo snackbar. */
+    val lastActionChange: StateFlow<String?> = _lastActionChange.asStateFlow()
+
+    fun setActionState(item: ActionItem, state: ActionState, snoozeDays: Long = 3) {
+        viewModelScope.launch {
+            overrideRepository.setActionState(item.key, state, if (state == ActionState.SNOOZED) LocalDate.now().toEpochDay() + snoozeDays else null)
+            _lastActionChange.value = item.key
+        }
+    }
+
+    fun undoActionState(key: String) {
+        viewModelScope.launch { overrideRepository.undoActionState(key); _lastActionChange.value = null }
+    }
+
+    fun clearActionChange() { _lastActionChange.value = null }
 
     fun syncNow() {
         if (_syncState.value is SyncUiState.Running) return

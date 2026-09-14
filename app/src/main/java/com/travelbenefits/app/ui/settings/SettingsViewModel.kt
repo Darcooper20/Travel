@@ -10,11 +10,14 @@ import com.travelbenefits.app.data.local.SyncSettings
 import com.travelbenefits.app.data.repository.ActivityRepository
 import com.travelbenefits.app.data.repository.BackupRepository
 import com.travelbenefits.app.data.repository.PlaidRepository
+import com.travelbenefits.app.data.repository.OverrideRepository
+import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.data.repository.WalletRepository
 import com.travelbenefits.app.auth.PlaidLinkCoordinator
 import com.travelbenefits.app.domain.model.PlaidItem
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -60,6 +63,7 @@ class SettingsViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val plaidRepository: PlaidRepository,
     private val plaidLinkCoordinator: PlaidLinkCoordinator,
+    private val overrideRepository: OverrideRepository,
     walletRepository: WalletRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -186,6 +190,14 @@ class SettingsViewModel @Inject constructor(
 
     fun clearActivity() {
         viewModelScope.launch { activityRepository.clear() }
+    }
+
+    val valuations: StateFlow<Map<RewardCurrency, Double>> = overrideRepository.observeOverrides()
+        .map { overrideRepository.valuations(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    fun setValuation(currency: RewardCurrency, centsPerPoint: String) {
+        viewModelScope.launch { overrideRepository.set("currency:${currency.name}", OverrideRepository.KEY_VALUATION, centsPerPoint.trim().toDoubleOrNull()?.toString()) }
     }
 
     fun runRemindersNow() {

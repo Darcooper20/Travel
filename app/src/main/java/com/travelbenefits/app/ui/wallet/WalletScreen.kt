@@ -50,7 +50,7 @@ import com.travelbenefits.app.domain.model.ResolvedWalletCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
+fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = hiltViewModel()) {
     val cards by viewModel.resolvedCards.collectAsState()
     val addCardState by viewModel.addCardState.collectAsState()
     val editCardState by viewModel.editCardState.collectAsState()
@@ -58,7 +58,7 @@ fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
     var pendingDelete by remember { mutableStateOf<ResolvedWalletCard?>(null) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Your wallet") }) },
+        topBar = { TopAppBar(title = { Text("Your wallet") }, actions = { TextButton(onClick = onOpenCardValue) { Text("Card value") } }) },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::openAddCard) {
                 Icon(Icons.Filled.Add, contentDescription = "Add card")

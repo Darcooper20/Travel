@@ -9,6 +9,14 @@ import com.travelbenefits.app.data.repository.PointsAdvisorRepository
 import com.travelbenefits.app.data.repository.ResearchRepository
 import com.travelbenefits.app.data.repository.PlaidRepository
 import com.travelbenefits.app.domain.SpendAnalyzer
+import com.travelbenefits.app.domain.CapUsageCalculator
+import com.travelbenefits.app.domain.MerchantClassifier
+import com.travelbenefits.app.domain.PurchaseRecommender
+import com.travelbenefits.app.data.repository.OverrideRepository
+import com.travelbenefits.app.domain.model.BookingChannel
+import com.travelbenefits.app.domain.model.Confidence
+import com.travelbenefits.app.domain.model.PurchaseQuery
+import com.travelbenefits.app.domain.model.PurchaseRecommendation
 import com.travelbenefits.app.domain.model.SpendPeriod
 import com.travelbenefits.app.domain.model.SpendReport
 import com.travelbenefits.app.domain.LoyaltyInsights
@@ -81,6 +89,20 @@ data class BalanceBuys(
     val bandNote: String?,
 )
 
+/** "Which card for this purchase?" form + result. */
+data class PurchaseUiState(
+    val merchant: String = "",
+    val amount: String = "",
+    val isForeign: Boolean = false,
+    val channel: BookingChannel = BookingChannel.ANY,
+    /** Null = use the classifier's guess. */
+    val categoryOverride: SpendingCategory? = null,
+    val guessedCategory: SpendingCategory? = null,
+    val guessConfidence: Confidence = Confidence.LOW,
+    val guessSource: String? = null,
+    val recommendation: PurchaseRecommendation? = null,
+)
+
 data class SpendUiState(
     val period: SpendPeriod = SpendPeriod.LAST_MONTH,
     val report: SpendReport? = null,
@@ -130,6 +152,10 @@ class OptimizeViewModel @Inject constructor(
     private val syncScheduler: com.travelbenefits.app.work.SyncScheduler,
     private val plaidRepository: PlaidRepository,
     private val spendAnalyzer: SpendAnalyzer,
+    private val purchaseRecommender: PurchaseRecommender,
+    private val merchantClassifier: MerchantClassifier,
+    private val capUsageCalculator: CapUsageCalculator,
+    private val overrideRepository: OverrideRepository,
 ) : ViewModel() {
 
 
@@ -172,6 +198,38 @@ class OptimizeViewModel @Inject constructor(
     }
 
     fun clearSpendMessage() { spendMessage.value = null }
+
+    // ---- Purchase (which card for this purchase?) ----
+    private val purchaseForm = MutableStateFlow(PurchaseUiState())
+
+    val purchaseState: StateFlow<PurchaseUiState> = combine(
+        purchaseForm,
+        cards,
+        plaidRepository.observeTransactions(),
+        overrideRepository.observeOverrides(),
+    ) { form, cards, txns, overrides ->
+        val guess = if (form.merchant.isBlank()) null else merchantClassifier.classify(form.merchant, txns)
+        val category = form.categoryOverride ?: guess?.category
+        val amount = form.amount.replace("$", "").replace(",", "").trim().toDoubleOrNull()
+        val recommendation = if (amount != null && amount > 0 && cards.isNotEmpty()) {
+            purchaseRecommender.recommend(
+                PurchaseQuery(
+                    merchant = form.merchant.ifBlank { null }, category = category, amountUsd = amount, isForeign = form.isForeign, channel = form.channel,
+                    categoryConfidence = if (form.categoryOverride != null) Confidence.HIGH else guess?.confidence ?: Confidence.LOW,
+                    categorySource = if (form.categoryOverride != null) "your choice" else guess?.source,
+                ),
+                cards,
+                capUsageCalculator.compute(cards, txns, overrideRepository.capSpend(overrides)),
+                overrideRepository.valuations(overrides),
+            )
+        } else null
+        form.copy(guessedCategory = guess?.category, guessConfidence = guess?.confidence ?: Confidence.LOW, guessSource = guess?.source, recommendation = recommendation)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PurchaseUiState())
+
+    fun updatePurchase(transform: (PurchaseUiState) -> PurchaseUiState) { purchaseForm.value = transform(purchaseForm.value) }
+
+    /** Prefills the form from a widget/shortcut query. */
+    fun prefillPurchase(merchant: String?) { if (!merchant.isNullOrBlank()) purchaseForm.value = purchaseForm.value.copy(merchant = merchant) }
 
     // ---- Earn ----
     private val earnCategory = MutableStateFlow(SpendingCategory.HOTELS)

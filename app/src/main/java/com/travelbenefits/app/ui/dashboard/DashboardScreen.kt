@@ -50,6 +50,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.ActivityEvent
 import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.Alert
+import com.travelbenefits.app.domain.model.ActionItem
+import com.travelbenefits.app.domain.model.ActionState
+import androidx.compose.material3.SnackbarResult
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.Trip
 import com.travelbenefits.app.ui.common.AlertRow
@@ -68,11 +71,20 @@ fun DashboardScreen(
     onOpenWallet: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenBenefits: () -> Unit,
+    onOpenCardValue: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
+    val lastActionChange by viewModel.lastActionChange.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDone by remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    LaunchedEffect(lastActionChange) {
+        val key = lastActionChange ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar("Action updated", actionLabel = "Undo", duration = SnackbarDuration.Short)
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoActionState(key) else viewModel.clearActionChange()
+    }
 
     LaunchedEffect(syncState) {
         when (val s = syncState) {
@@ -109,18 +121,26 @@ fun DashboardScreen(
             item { PortfolioCard(state, onOpenLoyalty) }
             item { SyncCard(state, syncState, onSync = viewModel::syncNow, onOpenSettings = onOpenSettings) }
 
-            if (state.alerts.isNotEmpty()) {
-                item { Text("Needs attention", style = MaterialTheme.typography.titleMedium) }
-                items(state.alerts.take(8)) { alert ->
-                    AlertRow(
-                        alert,
-                        onClick = when (alert.destination) {
+            val open = state.actions.filter { it.state == ActionState.OPEN }
+            val hidden = state.actions.size - open.size
+            if (state.actions.isNotEmpty()) {
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Actions (${open.size})", style = MaterialTheme.typography.titleMedium)
+                        if (hidden > 0) TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide $hidden done/snoozed" else "Show $hidden done/snoozed") }
+                    }
+                }
+                items(if (showDone) state.actions else open.take(10), key = { "act-${it.key}" }) { action ->
+                    ActionRow(
+                        action,
+                        onOpen = when (action.destination) {
                             Alert.Destination.TRIPS -> onOpenTrips
-                            Alert.Destination.CARDS -> onOpenWallet
+                            Alert.Destination.CARDS -> if (action.kind == com.travelbenefits.app.domain.model.ActionKind.RENEWAL) onOpenCardValue else onOpenWallet
                             Alert.Destination.BENEFITS -> onOpenBenefits
                             Alert.Destination.OPTIMIZE -> onOpenOptimize
-                            Alert.Destination.LOYALTY -> if (alert.tripId != null) onOpenTrips else onOpenLoyalty
+                            Alert.Destination.LOYALTY -> if (action.tripId != null) onOpenTrips else onOpenLoyalty
                         },
+                        onState = { st -> viewModel.setActionState(action, st) },
                     )
                 }
             }
@@ -169,6 +189,34 @@ fun DashboardScreen(
                 }
             } else {
                 items(state.activity, key = { "act-${it.id}" }) { event -> ActivityRow(event) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(action: ActionItem, onOpen: () -> Unit, onState: (ActionState) -> Unit) {
+    val dim = action.state != ActionState.OPEN
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth(), colors = if (dim) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) else CardDefaults.cardColors()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(action.kind.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    listOfNotNull(action.amountUsd?.let { "~" + formatUsd(it) }, action.deadlineEpochDay?.let { formatDateRange(it, it) }, "${action.effort.label} • ${action.confidence.label.lowercase()} confidence").joinToString(" • "),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(action.title, style = MaterialTheme.typography.titleSmall)
+            Text(action.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Next: ${action.nextStep} (source: ${action.source})", style = MaterialTheme.typography.labelSmall)
+            if (action.state == ActionState.OPEN) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { onState(ActionState.COMPLETED) }) { Text("Done") }
+                    TextButton(onClick = { onState(ActionState.SNOOZED) }) { Text("Snooze 3d") }
+                    TextButton(onClick = { onState(ActionState.DISMISSED) }) { Text("Dismiss") }
+                }
+            } else {
+                Text(action.state.name.lowercase().replaceFirstChar { it.uppercase() } + (action.snoozedUntilEpochDay?.let { " until ${formatDateRange(it, it)}" } ?: ""), style = MaterialTheme.typography.labelSmall)
             }
         }
     }

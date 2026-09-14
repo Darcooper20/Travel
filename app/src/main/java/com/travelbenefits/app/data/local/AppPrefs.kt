@@ -29,7 +29,16 @@ data class SyncSettings(
     val dailyRemindersEnabled: Boolean = true,
     /** Daily award-watch checks and weekly transfer-bonus research via web search (costs API calls). */
     val researchEnabled: Boolean = false,
-)
+    /** Quiet hours (local time) during which no notification is posted; deferred to the next run. 22-7 by default. */
+    val quietStartHour: Int = 22,
+    val quietEndHour: Int = 7,
+    val quietHoursEnabled: Boolean = true,
+) {
+    fun isQuietNow(hour: Int = java.time.LocalTime.now().hour): Boolean {
+        if (!quietHoursEnabled) return false
+        return if (quietStartHour <= quietEndHour) hour in quietStartHour until quietEndHour else (hour >= quietStartHour || hour < quietEndHour)
+    }
+}
 
 @Singleton
 class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
@@ -64,6 +73,9 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             .putInt(KEY_MAX_EMAILS, next.maxEmailsPerSync)
             .putBoolean(KEY_DAILY_REMINDERS, next.dailyRemindersEnabled)
             .putBoolean(KEY_RESEARCH, next.researchEnabled)
+            .putInt(KEY_QUIET_START, next.quietStartHour)
+            .putInt(KEY_QUIET_END, next.quietEndHour)
+            .putBoolean(KEY_QUIET_ENABLED, next.quietHoursEnabled)
             .apply()
         _syncSettings.value = next
     }
@@ -95,6 +107,9 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             maxEmailsPerSync = prefs.getInt(KEY_MAX_EMAILS, defaults.maxEmailsPerSync),
             dailyRemindersEnabled = prefs.getBoolean(KEY_DAILY_REMINDERS, defaults.dailyRemindersEnabled),
             researchEnabled = prefs.getBoolean(KEY_RESEARCH, defaults.researchEnabled),
+            quietStartHour = prefs.getInt(KEY_QUIET_START, defaults.quietStartHour),
+            quietEndHour = prefs.getInt(KEY_QUIET_END, defaults.quietEndHour),
+            quietHoursEnabled = prefs.getBoolean(KEY_QUIET_ENABLED, defaults.quietHoursEnabled),
         )
     }
 
@@ -110,6 +125,9 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_MAX_EMAILS = "max_emails_per_sync"
         const val KEY_DAILY_REMINDERS = "daily_reminders_enabled"
         const val KEY_RESEARCH = "research_enabled"
+        const val KEY_QUIET_START = "quiet_start_hour"
+        const val KEY_QUIET_END = "quiet_end_hour"
+        const val KEY_QUIET_ENABLED = "quiet_hours_enabled"
         const val KEY_LAST_SYNC_AT = "last_sync_at"
         const val KEY_LAST_SYNC_SUMMARY = "last_sync_summary"
         const val KEY_ONBOARDED = "has_seen_onboarding"

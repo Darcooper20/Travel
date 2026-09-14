@@ -9,6 +9,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -27,6 +28,16 @@ import com.travelbenefits.app.ui.wallet.WalletScreen
 @Composable
 fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) -> Unit) {
     val navController = rememberNavController()
+    val pendingRoute by NavigationRequests.pendingRoute.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pendingRoute) {
+        if (pendingRoute == NavigationRequests.OPEN_PURCHASE) {
+            NavigationRequests.consumeRoute()
+            navController.navigate(Screen.Optimize.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     fun navigateTab(route: String) {
         navController.navigate(route) {
@@ -65,17 +76,21 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) 
                     onOpenWallet = { navigateTab(Screen.Wallet.route) },
                     onOpenSettings = { navController.navigate(Screen.Settings.route) },
                     onOpenBenefits = { navController.navigate(Screen.Benefits.route) },
+                    onOpenCardValue = { navController.navigate(Screen.CardValue.route) },
                 )
             }
             composable(Screen.Benefits.route) {
                 BenefitsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.CardValue.route) {
+                com.travelbenefits.app.ui.cardvalue.CardValueScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Loyalty.route) {
                 LoyaltyScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })
             }
             composable(Screen.Trips.route) { TripsScreen() }
             composable(Screen.Optimize.route) { OptimizeScreen() }
-            composable(Screen.Wallet.route) { WalletScreen() }
+            composable(Screen.Wallet.route) { WalletScreen(onOpenCardValue = { navController.navigate(Screen.CardValue.route) }) }
             composable(Screen.Settings.route) {
                 SettingsScreen(onLaunchGmailAuth = onLaunchGmailAuth, onLaunchPlaidLink = onLaunchPlaidLink, onBack = { navController.popBackStack() })
             }

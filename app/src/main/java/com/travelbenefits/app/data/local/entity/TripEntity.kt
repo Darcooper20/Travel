@@ -27,4 +27,6 @@ data class TripEntity(
     val sourceMessageId: String?,
     val notes: String?,
     val createdAt: Long,
+    /** Added in DB v7. */
+    val paymentCardId: Long? = null,
 )

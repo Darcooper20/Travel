@@ -30,7 +30,7 @@ class EmailSyncWorker @AssistedInject constructor(
 
         return emailMonitorRepository.sync().fold(
             onSuccess = { report ->
-                if (settings.notificationsEnabled && report.notableCount > 0) {
+                if (settings.notificationsEnabled && report.notableCount > 0 && !settings.isQuietNow()) {
                     appNotifier.notifySyncReport(report)
                 }
                 Result.success()

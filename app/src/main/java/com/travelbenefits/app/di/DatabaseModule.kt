@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.travelbenefits.app.data.local.AppDatabase
 import com.travelbenefits.app.data.local.Migrations
+import com.travelbenefits.app.data.local.dao.ActionStateDao
 import com.travelbenefits.app.data.local.dao.ActivityEventDao
+import com.travelbenefits.app.data.local.dao.UserOverrideDao
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.BenefitDao
 import com.travelbenefits.app.data.local.dao.BenefitLedgerDao
@@ -77,4 +79,10 @@ object DatabaseModule {
 
     @Provides
     fun provideBenefitLedgerDao(db: AppDatabase): BenefitLedgerDao = db.benefitLedgerDao()
+
+    @Provides
+    fun provideActionStateDao(db: AppDatabase): ActionStateDao = db.actionStateDao()
+
+    @Provides
+    fun provideUserOverrideDao(db: AppDatabase): UserOverrideDao = db.userOverrideDao()
 }

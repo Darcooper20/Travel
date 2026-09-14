@@ -37,6 +37,8 @@ data class Trip(
     val sourceMessageId: String?,
     val notes: String?,
     val createdAt: Long,
+    /** Wallet card the booking was paid with, when known. */
+    val paymentCardId: Long? = null,
 ) {
     fun isUpcoming(todayEpochDay: Long): Boolean {
         val end = endEpochDay ?: startEpochDay ?: return false

@@ -16,7 +16,9 @@ import com.plaid.link.result.LinkExit
 import com.plaid.link.result.LinkSuccess
 import com.travelbenefits.app.auth.GmailAuthManager
 import com.travelbenefits.app.auth.PlaidLinkCoordinator
+import android.content.Intent
 import com.travelbenefits.app.ui.navigation.AppNavHost
+import com.travelbenefits.app.ui.navigation.NavigationRequests
 import com.travelbenefits.app.ui.theme.TravelBenefitsTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -46,8 +48,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleRequest(intent)
+    }
+
+    private fun handleRequest(intent: Intent?) {
+        if (intent?.getStringExtra(NavigationRequests.EXTRA_OPEN) == NavigationRequests.OPEN_PURCHASE) {
+            NavigationRequests.requestPurchase(intent.getStringExtra(NavigationRequests.EXTRA_MERCHANT))
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleRequest(intent)
         setContent {
             TravelBenefitsTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {

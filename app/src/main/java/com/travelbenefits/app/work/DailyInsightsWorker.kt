@@ -41,6 +41,8 @@ class DailyInsightsWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val settings = appPrefs.syncSettings.value
         if (!settings.dailyRemindersEnabled || !settings.notificationsEnabled) return Result.success()
+        // Quiet hours: come back later rather than notify now; nothing is marked as notified.
+        if (settings.isQuietNow()) return Result.retry()
 
         val accounts = loyaltyAccountDao.getAll().map { it.toDomain() }
         val trips = tripDao.getAll().map { it.toDomain() }

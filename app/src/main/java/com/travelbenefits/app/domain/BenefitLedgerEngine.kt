@@ -51,7 +51,7 @@ object BenefitLedgerEngine {
                     if (start.isAfter(today)) start = start.minusYears(1)
                     if (period == CreditPeriod.EVERY_4_YEARS) {
                         // Anchor 4-year windows to the opening date.
-                        var s = dateOpened
+                        var s: LocalDate = dateOpened
                         while (!s.plusYears(4).isAfter(today)) s = s.plusYears(4)
                         start = s
                     }

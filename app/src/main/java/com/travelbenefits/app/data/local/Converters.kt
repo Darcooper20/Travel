@@ -1,6 +1,7 @@
 package com.travelbenefits.app.data.local
 
 import androidx.room.TypeConverter
+import com.travelbenefits.app.domain.model.ActionState
 import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.LedgerEntryKind
@@ -65,4 +66,10 @@ class Converters {
 
     @TypeConverter
     fun toLedgerSource(value: String): LedgerSource = LedgerSource.valueOf(value)
+
+    @TypeConverter
+    fun fromActionState(value: ActionState): String = value.name
+
+    @TypeConverter
+    fun toActionState(value: String): ActionState = ActionState.valueOf(value)
 }

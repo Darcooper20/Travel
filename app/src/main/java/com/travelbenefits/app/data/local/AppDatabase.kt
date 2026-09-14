@@ -3,7 +3,9 @@ package com.travelbenefits.app.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.travelbenefits.app.data.local.dao.ActionStateDao
 import com.travelbenefits.app.data.local.dao.ActivityEventDao
+import com.travelbenefits.app.data.local.dao.UserOverrideDao
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.BenefitDao
 import com.travelbenefits.app.data.local.dao.BenefitLedgerDao
@@ -17,7 +19,9 @@ import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
 import com.travelbenefits.app.data.local.dao.ProcessedEmailDao
 import com.travelbenefits.app.data.local.dao.TripDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
+import com.travelbenefits.app.data.local.entity.ActionStateEntity
 import com.travelbenefits.app.data.local.entity.ActivityEventEntity
+import com.travelbenefits.app.data.local.entity.UserOverrideEntity
 import com.travelbenefits.app.data.local.entity.AwardWatchEntity
 import com.travelbenefits.app.data.local.entity.BenefitItemEntity
 import com.travelbenefits.app.data.local.entity.BenefitLedgerEntity
@@ -54,8 +58,10 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
         PlaidAccountEntity::class,
         TransactionEntity::class,
         BenefitLedgerEntity::class,
+        ActionStateEntity::class,
+        UserOverrideEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -74,6 +80,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun notifiedAlertDao(): NotifiedAlertDao
     abstract fun plaidDao(): PlaidDao
     abstract fun benefitLedgerDao(): BenefitLedgerDao
+    abstract fun actionStateDao(): ActionStateDao
+    abstract fun userOverrideDao(): UserOverrideDao
 
     companion object {
         const val DATABASE_NAME = "travel_benefits.db"

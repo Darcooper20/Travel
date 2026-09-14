@@ -18,6 +18,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     data object Wallet : Screen("wallet", "Cards", Icons.Filled.CreditCard)
     data object Settings : Screen("settings", "Settings", Icons.Filled.Settings)
     data object Benefits : Screen("benefits", "Credits & certificates", Icons.Filled.CardGiftcard)
+    data object CardValue : Screen("cardvalue", "Card value", Icons.Filled.CreditCard)
 
     companion object {
         val bottomBarScreens = listOf(Home, Loyalty, Trips, Optimize, Wallet)

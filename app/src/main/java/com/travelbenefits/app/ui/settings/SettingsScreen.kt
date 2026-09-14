@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.travelbenefits.app.data.repository.BackupRepository
+import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.auth.PlaidLinkCoordinator
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import androidx.compose.foundation.layout.height
@@ -62,6 +63,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val plaid by viewModel.plaidState.collectAsState()
+    val valuations by viewModel.valuations.collectAsState()
     val sync by viewModel.syncSettings.collectAsState()
     val isGmailConnected by viewModel.isGmailConnected.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -224,7 +226,20 @@ fun SettingsScreen(
                     )
                     ToggleRow(label = "Daily reminders", checked = sync.dailyRemindersEnabled, onChange = { on -> viewModel.updateSync { it.copy(dailyRemindersEnabled = on) } })
                     ToggleRow(label = "Award watches & transfer-bonus research (uses API)", checked = sync.researchEnabled, onChange = { on -> viewModel.updateSync { it.copy(researchEnabled = on) } })
+                    ToggleRow(label = "Quiet hours (${sync.quietStartHour}:00–${sync.quietEndHour}:00)", checked = sync.quietHoursEnabled, onChange = { on -> viewModel.updateSync { it.copy(quietHoursEnabled = on) } })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DropdownPicker(label = "Quiet from", options = (0..23).toList(), selected = sync.quietStartHour, optionLabel = { "$it:00" }, onSelected = { h -> viewModel.updateSync { it.copy(quietStartHour = h) } }, modifier = Modifier.weight(1f))
+                        DropdownPicker(label = "until", options = (0..23).toList(), selected = sync.quietEndHour, optionLabel = { "$it:00" }, onSelected = { h -> viewModel.updateSync { it.copy(quietEndHour = h) } }, modifier = Modifier.weight(1f))
+                    }
                     TextButton(onClick = viewModel::runRemindersNow) { Text("Run reminder check now") }
+                }
+            }
+            item {
+                SectionCard(title = "Your point valuations (¢ per point)") {
+                    Text("Used by the best-card picker, cash-vs-points and card value instead of the app's estimates. Leave blank to use the estimate.", style = MaterialTheme.typography.bodySmall)
+                    RewardCurrency.entries.filter { !it.displayAsPercent && it != RewardCurrency.GENERIC_POINTS }.forEach { c ->
+                        ValuationField(c, valuations[c], onSave = { v -> viewModel.setValuation(c, v) })
+                    }
                 }
             }
             item {
@@ -296,6 +311,15 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ValuationField(currency: RewardCurrency, value: Double?, onSave: (String) -> Unit) {
+    var text by remember(value) { mutableStateOf(value?.toString().orEmpty()) }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("${currency.displayName} (est. ${currency.estValueCentsPerPoint}¢)") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+        TextButton(onClick = { onSave(text) }) { Text("Save") }
     }
 }
 

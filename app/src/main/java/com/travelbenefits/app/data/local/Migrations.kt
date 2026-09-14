@@ -224,5 +224,22 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    /** v6 -> v7: action-item states and user overrides. */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `action_states` (" +
+                    "`actionKey` TEXT NOT NULL, `state` TEXT NOT NULL, `untilEpochDay` INTEGER, `previousState` TEXT, `updatedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`actionKey`))",
+            )
+            db.execSQL("ALTER TABLE `trips` ADD COLUMN `paymentCardId` INTEGER")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `user_overrides` (" +
+                    "`scope` TEXT NOT NULL, `overrideKey` TEXT NOT NULL, `value` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`scope`, `overrideKey`))",
+            )
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 }

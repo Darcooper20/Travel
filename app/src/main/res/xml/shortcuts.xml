@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="which_card"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_which_card_short"
+        android:shortcutLongLabel="@string/shortcut_which_card_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="${applicationId}"
+            android:targetClass="com.travelbenefits.app.MainActivity">
+            <extra android:name="open" android:value="purchase" />
+        </intent>
+    </shortcut>
+</shortcuts>

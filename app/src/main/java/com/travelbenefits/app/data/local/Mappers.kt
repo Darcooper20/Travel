@@ -76,6 +76,7 @@ fun TripEntity.toDomain(): Trip = Trip(
     sourceMessageId = sourceMessageId,
     notes = notes,
     createdAt = createdAt,
+    paymentCardId = paymentCardId,
 )
 
 fun Trip.toEntity(): TripEntity = TripEntity(
@@ -98,6 +99,7 @@ fun Trip.toEntity(): TripEntity = TripEntity(
     sourceMessageId = sourceMessageId,
     notes = notes,
     createdAt = createdAt,
+    paymentCardId = paymentCardId,
 )
 
 fun PointsSnapshotEntity.toDomain(): PointsSnapshot = PointsSnapshot(

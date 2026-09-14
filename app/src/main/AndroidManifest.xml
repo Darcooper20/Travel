@@ -46,7 +46,19 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Home-screen "Which card?" widget. -->
+        <receiver
+            android:name=".widget.BestCardWidget"
+            android:exported="true"
+            android:label="@string/shortcut_which_card_short">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_best_card_info" />
+        </receiver>
 
         <!--
           WorkManager is initialised by TravelBenefitsApp (Configuration.Provider)

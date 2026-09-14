@@ -65,6 +65,9 @@ import com.travelbenefits.app.ui.common.formatEpochDay
 import com.travelbenefits.app.ui.common.formatRelative
 import com.travelbenefits.app.domain.model.AwardWatch
 import com.travelbenefits.app.domain.model.SpendPeriod
+import com.travelbenefits.app.domain.model.BookingChannel
+import com.travelbenefits.app.domain.model.Confidence
+import com.travelbenefits.app.ui.navigation.NavigationRequests
 
 private val tabs = listOf("Spend", "Earn", "Redeem", "Transfer", "Watch", "Ask")
 
@@ -181,9 +184,65 @@ private fun SpendTab(viewModel: OptimizeViewModel) {
 @Composable
 private fun EarnTab(viewModel: OptimizeViewModel) {
     val state by viewModel.earnState.collectAsState()
+    val purchase by viewModel.purchaseState.collectAsState()
     val programOptions: List<LoyaltyProgram?> = listOf<LoyaltyProgram?>(null) + travelPrograms
+    val categoryOptions: List<SpendingCategory?> = listOf<SpendingCategory?>(null) + SpendingCategory.entries
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        NavigationRequests.consumePurchaseMerchant()?.let { viewModel.prefillPurchase(it) }
+    }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+        item { Text("Which card for this purchase?", style = MaterialTheme.typography.titleMedium) }
+        item {
+            OutlinedTextField(value = purchase.merchant, onValueChange = { v -> viewModel.updatePurchase { it.copy(merchant = v) } }, label = { Text("Merchant (e.g. Whole Foods, Delta, Shell)") }, modifier = Modifier.fillMaxWidth())
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = purchase.amount, onValueChange = { v -> viewModel.updatePurchase { it.copy(amount = v) } }, label = { Text("Amount (USD)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f),
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Switch(checked = purchase.isForeign, onCheckedChange = { c -> viewModel.updatePurchase { it.copy(isForeign = c) } })
+                    Text("Abroad / foreign", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        item {
+            DropdownPicker(
+                label = "Category" + (if (purchase.categoryOverride == null && purchase.guessedCategory != null) " (guessed: ${purchase.guessedCategory!!.label}, ${purchase.guessConfidence.label.lowercase()} confidence)" else ""),
+                options = categoryOptions, selected = purchase.categoryOverride,
+                optionLabel = { it?.label ?: (purchase.guessedCategory?.let { g -> "Auto: ${g.label}" } ?: "Auto (unknown - pick one)") },
+                onSelected = { c -> viewModel.updatePurchase { it.copy(categoryOverride = c) } },
+            )
+        }
+        item {
+            DropdownPicker(label = "How it's booked", options = BookingChannel.entries, selected = purchase.channel, optionLabel = { it.label }, onSelected = { c -> viewModel.updatePurchase { it.copy(channel = c) } })
+        }
+        purchase.recommendation?.let { rec ->
+            rec.categoryWarning?.let { item { CaveatCard(it) } }
+            items(rec.options, key = { "p-${it.card.walletCard.id}" }) { opt ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = if (opt == rec.options.firstOrNull()) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(opt.card.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            Text("~${formatUsd(opt.netValueUsd)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                        Text(
+                            "${opt.effectiveRateLabel} ${opt.rewardCurrency.displayName} → ${if (opt.rewardCurrency.displayAsPercent) formatUsd(opt.rewardsEarned) else String.format("%,.0f pts", opt.rewardsEarned)}" +
+                                (opt.foreignFeeUsd?.takeIf { it > 0 }?.let { " − ${formatUsd(it)} foreign fee" } ?: "") + " • ${opt.confidence.label} confidence",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        opt.reasons.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                        opt.conditions.forEach { Text("Condition: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        opt.warnings.forEach { Text("⚠ $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
+                        opt.thresholdNotes.forEach { Text("Note: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary) }
+                    }
+                }
+            }
+            item { Text("Values are estimates from catalog rules and point valuations; issuers decide the merchant's category. Set your own valuations in Settings.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        item { Text("Category ranking", style = MaterialTheme.typography.titleMedium) }
         item {
             DropdownPicker(label = "Spending category", options = SpendingCategory.entries, selected = state.category, optionLabel = { it.label }, onSelected = viewModel::selectEarnCategory)
         }
