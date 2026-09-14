@@ -17,4 +17,11 @@ data class WalletCardEntity(
     val rewardsBalance: Long? = null,
     val rewardsBalanceAsOf: Long? = null,
     val last4: String? = null,
+    /** Added in DB v4. */
+    val dateOpenedEpochDay: Long? = null,
+    val bonusSpendRequiredUsd: Long? = null,
+    val bonusDeadlineEpochDay: Long? = null,
+    val bonusSpendToDateUsd: Long? = null,
+    val bonusEarnedAt: Long? = null,
+    val memberName: String? = null,
 )

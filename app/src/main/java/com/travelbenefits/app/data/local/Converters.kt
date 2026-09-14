@@ -2,6 +2,8 @@ package com.travelbenefits.app.data.local
 
 import androidx.room.TypeConverter
 import com.travelbenefits.app.domain.model.ActivityKind
+import com.travelbenefits.app.domain.model.BenefitKind
+import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.TripKind
@@ -37,4 +39,16 @@ class Converters {
 
     @TypeConverter
     fun toActivityKind(value: String): ActivityKind = ActivityKind.valueOf(value)
+
+    @TypeConverter
+    fun fromBenefitKind(value: BenefitKind): String = value.name
+
+    @TypeConverter
+    fun toBenefitKind(value: String): BenefitKind = BenefitKind.valueOf(value)
+
+    @TypeConverter
+    fun fromRewardCurrency(value: RewardCurrency): String = value.name
+
+    @TypeConverter
+    fun toRewardCurrency(value: String): RewardCurrency = RewardCurrency.valueOf(value)
 }

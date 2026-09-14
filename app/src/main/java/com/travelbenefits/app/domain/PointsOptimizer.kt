@@ -110,7 +110,12 @@ class PointsOptimizer @Inject constructor() {
         cards.map { card ->
             when (card) {
                 is ResolvedWalletCard.Catalog -> {
-                    val rate = card.entry.rateFor(category)
+                    val rotating = card.rotating?.takeIf { category in it.categories }
+                    val rate = if (rotating != null && card.entry.rotatingMultiplier > card.entry.rateFor(category).multiplier) {
+                        com.travelbenefits.app.domain.model.RewardRate(category, card.entry.rotatingMultiplier, "rotating category this quarter" + if (rotating.activated) "" else ", not activated")
+                    } else {
+                        card.entry.rateFor(category)
+                    }
                     val currency = card.entry.rewardCurrency
                     val ratio = if (card.entry.isDiscontinued) null else TransferPartnerCatalog.ratio(currency, program)
                     EarnPlanEntry(

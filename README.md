@@ -29,8 +29,24 @@ Gmail - with tools to squeeze the most out of your points.
   (or added by hand), with an "is this earning?" check: if a booking maps to
   a program you belong to but the confirmation doesn't show your member
   number, the app flags it before check-in.
-- **Needs attention** - expiring points, "3 nights to Gold" nudges, upcoming
-  trips, bookings missing a loyalty number, member numbers you haven't saved.
+- **Needs attention** - staged expiry reminders (90/60/30/7 days) with a
+  "how to reset the clock" tip per program, "3 nights to Gold" nudges,
+  upcoming trips and check-in reminders, bookings missing a loyalty number,
+  unused card credits near period end, certificates about to expire,
+  welcome-bonus deadlines and quarterly category activation. A daily local
+  check pushes each reminder once as a notification.
+- **Credits & certificates** - every catalog credit on your cards (airline
+  fee, Uber, hotel, Global Entry...) as a per-period checklist with the
+  unused value at stake, plus free-night certificates, companion passes and
+  upgrade awards (found in email or added by hand) with expiry dates.
+- **Welcome bonuses & rotating categories** - minimum-spend tracker per card
+  (statement emails add to it), and this quarter's 5% categories for
+  rotating/choice cards (Freedom Flex, Discover it, U.S. Bank Cash+) with an
+  "activated" flag and an AI lookup, feeding the best-card picker.
+- **Household members** - loyalty accounts and cards can be tagged with a
+  family member's name and are grouped by person.
+- **Backup** - JSON export/import of everything and a CSV balance sheet;
+  no cloud copy exists, so export now and then.
 - **Maximize points**
   - *Earn*: best card for a spending category, either by overall estimated
     value or by "most points into program X" (co-brand cards directly, bank
@@ -39,6 +55,10 @@ Gmail - with tools to squeeze the most out of your points.
     card rewards a paid booking would have earned.
   - *Transfer*: which of your cards' currencies move into a program, at what
     ratio, and whether that's a good use of them.
+  - *Watch*: saved award watches ("Hyatt Regency Kyoto, 3 nights in March")
+    that a daily research job checks with web search and flags when they
+    look bookable, plus weekly research of live bank transfer bonuses shown
+    against your transfer options. Both are researched, not live inventory.
   - *Ask*: an AI advisor (Claude + web search) that takes your actual
     balances and cards and researches the best redemption for a trip you
     describe - and tells you where to confirm live availability, because no
@@ -111,7 +131,7 @@ every push, so it always has the newest build.
   search and the app deep-links to each program's own award search to
   confirm.
 - **Upgrading from the previous version** migrates the local database
-  (v1 -> v3) in place; if anything looks off, clearing the app's storage
+  (v1 -> v4) in place; if anything looks off, clearing the app's storage
   and re-syncing rebuilds it from Gmail.
 
 ## Architecture
@@ -119,9 +139,10 @@ every push, so it always has the newest build.
 - **UI**: Jetpack Compose (Material 3), single-activity, Navigation Compose
   with a bottom nav bar (Home / Loyalty / Trips / Maximize / Cards) and a
   Settings screen.
-- **Background sync**: WorkManager periodic work (`work/EmailSyncWorker`)
-  with a Hilt-injected worker; interval, notifications, lookback window and
-  per-sync email cap are all in Settings.
+- **Background work**: WorkManager periodic jobs with Hilt-injected workers:
+  `EmailSyncWorker` (Gmail, on your interval), `DailyInsightsWorker` (local
+  reminders, once a day, no network) and `ResearchWorker` (award watches
+  daily, transfer bonuses weekly, opt-in, uses the API).
 - **State**: MVVM - one `ViewModel` per screen, `StateFlow` for UI state.
 - **DI**: Hilt.
 - **Local storage**: Room v2 (wallet cards, loyalty accounts, balance

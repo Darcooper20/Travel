@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Hotel
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.ActivityEvent
 import com.travelbenefits.app.domain.model.ActivityKind
+import com.travelbenefits.app.domain.model.Alert
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.Trip
 import com.travelbenefits.app.ui.common.AlertRow
@@ -65,6 +67,7 @@ fun DashboardScreen(
     onOpenOptimize: () -> Unit,
     onOpenWallet: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenBenefits: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -108,8 +111,17 @@ fun DashboardScreen(
 
             if (state.alerts.isNotEmpty()) {
                 item { Text("Needs attention", style = MaterialTheme.typography.titleMedium) }
-                items(state.alerts.take(6)) { alert ->
-                    AlertRow(alert, onClick = if (alert.tripId != null) onOpenTrips else onOpenLoyalty)
+                items(state.alerts.take(8)) { alert ->
+                    AlertRow(
+                        alert,
+                        onClick = when (alert.destination) {
+                            Alert.Destination.TRIPS -> onOpenTrips
+                            Alert.Destination.CARDS -> onOpenWallet
+                            Alert.Destination.BENEFITS -> onOpenBenefits
+                            Alert.Destination.OPTIMIZE -> onOpenOptimize
+                            Alert.Destination.LOYALTY -> if (alert.tripId != null) onOpenTrips else onOpenLoyalty
+                        },
+                    )
                 }
             }
 
@@ -117,6 +129,11 @@ fun DashboardScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     QuickTile(Modifier.weight(1f), Icons.Filled.Luggage, "${state.upcomingTrips.size} upcoming", "Trips", onOpenTrips)
                     QuickTile(Modifier.weight(1f), Icons.Filled.CreditCard, "${state.cardCount} card(s)", "Cards", onOpenWallet)
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    QuickTile(Modifier.weight(1f), Icons.Filled.CardGiftcard, "~${formatUsd(state.unusedCreditsUsd)} unused", "Credits & certificates (${state.unusedCreditCount})", onOpenBenefits)
                 }
             }
             item {

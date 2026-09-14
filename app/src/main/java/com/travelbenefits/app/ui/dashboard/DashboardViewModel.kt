@@ -6,6 +6,7 @@ import com.travelbenefits.app.auth.GmailAuthManager
 import com.travelbenefits.app.data.local.AppPrefs
 import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.repository.ActivityRepository
+import com.travelbenefits.app.data.repository.BenefitsRepository
 import com.travelbenefits.app.data.repository.EmailMonitorRepository
 import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.data.repository.TripRepository
@@ -42,6 +43,8 @@ data class DashboardUiState(
     val cardRewardsValueUsd: Double = 0.0,
     val cardsWithBalance: Int = 0,
     val cardCount: Int = 0,
+    val unusedCreditsUsd: Double = 0.0,
+    val unusedCreditCount: Int = 0,
     val upcomingTrips: List<Trip> = emptyList(),
     val alerts: List<Alert> = emptyList(),
     val activity: List<ActivityEvent> = emptyList(),
@@ -66,6 +69,7 @@ class DashboardViewModel @Inject constructor(
     tripRepository: TripRepository,
     walletRepository: WalletRepository,
     private val activityRepository: ActivityRepository,
+    benefitsRepository: BenefitsRepository,
     private val emailMonitorRepository: EmailMonitorRepository,
     private val insights: LoyaltyInsights,
     private val appPrefs: AppPrefs,
@@ -76,13 +80,17 @@ class DashboardViewModel @Inject constructor(
     private val _syncState = MutableStateFlow<SyncUiState>(SyncUiState.Idle)
     val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
 
+    private val benefitsFlow = combine(benefitsRepository.observeCreditStatuses(), benefitsRepository.observeItems()) { credits, items -> credits to items }
+
     private val core = combine(
         loyaltyRepository.observeAccounts(),
         tripRepository.observeTrips(),
         walletRepository.observeResolvedCards(),
-        activityRepository.observeRecent(40),
-        activityRepository.observeUnreadCount(),
-    ) { accounts, trips, cards, activity, unread ->
+        combine(activityRepository.observeRecent(40), activityRepository.observeUnreadCount()) { a, u -> a to u },
+        benefitsFlow,
+    ) { accounts, trips, cards, activityPair, benefitPair ->
+        val (activity, unread) = activityPair
+        val (credits, items) = benefitPair
         val today = LocalDate.now().toEpochDay()
         val cardValue = insights.cardRewardsValueUsd(cards)
         DashboardUiState(
@@ -95,8 +103,10 @@ class DashboardViewModel @Inject constructor(
             cardRewardsValueUsd = cardValue,
             cardsWithBalance = cards.count { it.walletCard.rewardsBalance != null },
             cardCount = cards.size,
+            unusedCreditsUsd = credits.filter { it.isAvailable }.sumOf { it.periodValueUsd },
+            unusedCreditCount = credits.count { it.isAvailable } + items.count { !it.isUsed },
             upcomingTrips = trips.filter { it.isUpcoming(today) }.sortedBy { it.startEpochDay ?: Long.MAX_VALUE }.take(5),
-            alerts = insights.alerts(accounts, trips),
+            alerts = insights.alerts(accounts, trips, cards, credits, items),
             activity = activity,
             unreadActivity = unread,
         )

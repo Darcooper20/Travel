@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.travelbenefits.app.ui.benefits.BenefitsScreen
 import com.travelbenefits.app.ui.dashboard.DashboardScreen
 import com.travelbenefits.app.ui.loyalty.LoyaltyScreen
 import com.travelbenefits.app.ui.optimize.OptimizeScreen
@@ -63,7 +64,11 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit) {
                     onOpenOptimize = { navigateTab(Screen.Optimize.route) },
                     onOpenWallet = { navigateTab(Screen.Wallet.route) },
                     onOpenSettings = { navController.navigate(Screen.Settings.route) },
+                    onOpenBenefits = { navController.navigate(Screen.Benefits.route) },
                 )
+            }
+            composable(Screen.Benefits.route) {
+                BenefitsScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Loyalty.route) {
                 LoyaltyScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })

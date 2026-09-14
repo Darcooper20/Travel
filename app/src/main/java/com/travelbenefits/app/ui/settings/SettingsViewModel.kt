@@ -8,6 +8,12 @@ import com.travelbenefits.app.data.local.AppPrefs
 import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.local.SyncSettings
 import com.travelbenefits.app.data.repository.ActivityRepository
+import com.travelbenefits.app.data.repository.BackupRepository
+import android.content.Context
+import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.travelbenefits.app.data.repository.EmailMonitorRepository
 import com.travelbenefits.app.notifications.AppNotifier
 import com.travelbenefits.app.work.SyncScheduler
@@ -35,6 +41,8 @@ class SettingsViewModel @Inject constructor(
     private val emailMonitorRepository: EmailMonitorRepository,
     private val activityRepository: ActivityRepository,
     private val appNotifier: AppNotifier,
+    private val backupRepository: BackupRepository,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -102,5 +110,32 @@ class SettingsViewModel @Inject constructor(
 
     fun clearActivity() {
         viewModelScope.launch { activityRepository.clear() }
+    }
+
+    fun runRemindersNow() {
+        syncScheduler.runRemindersNow()
+        _message.value = "Reminder check queued - anything new arrives as a notification."
+    }
+
+    /** Writes a JSON or CSV export to the document the user picked. */
+    fun exportTo(uri: Uri, csv: Boolean) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val text = if (csv) backupRepository.exportBalancesCsv() else backupRepository.exportJson()
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } ?: error("Couldn't open the file for writing.")
+                }
+            }
+            _message.value = result.fold({ "Exported ${if (csv) "balances CSV" else "JSON backup"}." }, { "Export failed: ${it.message}" })
+        }
+    }
+
+    fun importFrom(uri: Uri) {
+        viewModelScope.launch {
+            val text = runCatching {
+                withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error("Couldn't read the file.") }
+            }.getOrElse { _message.value = "Import failed: ${it.message}"; return@launch }
+            _message.value = backupRepository.importJson(text).fold({ it }, { "Import failed: ${it.message}" })
+        }
     }
 }

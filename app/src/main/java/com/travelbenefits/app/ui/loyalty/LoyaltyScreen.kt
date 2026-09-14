@@ -94,11 +94,17 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
                     )
                 }
             }
-            LoyaltyProgramKind.entries.forEach { kind ->
-                val group = accounts.filter { it.account.program.kind == kind }
-                if (group.isNotEmpty()) {
-                    item { Text(kind.label, style = MaterialTheme.typography.titleMedium) }
-                    items(group, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
+            val members = accounts.map { it.account.memberName }.distinct().sortedBy { it ?: "" }
+            members.forEach { member ->
+                if (members.size > 1 || member != null) {
+                    item { Text(member ?: "Me", style = MaterialTheme.typography.titleLarge) }
+                }
+                LoyaltyProgramKind.entries.forEach { kind ->
+                    val group = accounts.filter { it.account.program.kind == kind && it.account.memberName == member }
+                    if (group.isNotEmpty()) {
+                        item { Text(kind.label, style = MaterialTheme.typography.titleMedium) }
+                        items(group, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
+                    }
                 }
             }
             item {
@@ -306,6 +312,12 @@ private fun EditAccountDialog(
                     value = state.pointsExpireOn,
                     onValueChange = { v -> onChange { it.copy(pointsExpireOn = v) } },
                     label = { Text("Points expire on (YYYY-MM-DD, optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.memberName,
+                    onValueChange = { v -> onChange { it.copy(memberName = v) } },
+                    label = { Text("Household member (blank = me)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

@@ -2,6 +2,7 @@ package com.travelbenefits.app.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Loyalty
@@ -16,6 +17,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     data object Optimize : Screen("optimize", "Maximize", Icons.Filled.AutoAwesome)
     data object Wallet : Screen("wallet", "Cards", Icons.Filled.CreditCard)
     data object Settings : Screen("settings", "Settings", Icons.Filled.Settings)
+    data object Benefits : Screen("benefits", "Credits & certificates", Icons.Filled.CardGiftcard)
 
     companion object {
         val bottomBarScreens = listOf(Home, Loyalty, Trips, Optimize, Wallet)

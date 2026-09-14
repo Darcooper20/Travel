@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.travelbenefits.app.data.repository.BackupRepository
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -66,6 +67,9 @@ fun SettingsScreen(
         notificationPermission = granted
         viewModel.updateSync { it.copy(notificationsEnabled = granted) }
     }
+    val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let { viewModel.exportTo(it, csv = false) } }
+    val exportCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri -> uri?.let { viewModel.exportTo(it, csv = true) } }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { viewModel.importFrom(it) } }
 
     LaunchedEffect(message) {
         message?.let {
@@ -143,6 +147,27 @@ fun SettingsScreen(
                         TextButton(onClick = viewModel::resetScanHistory) { Text("Re-scan from scratch") }
                         TextButton(onClick = viewModel::clearActivity) { Text("Clear activity feed") }
                     }
+                }
+            }
+            item {
+                SectionCard(title = "Reminders") {
+                    Text(
+                        "A daily local check (no network) for points and certificates about to expire (90/60/30/7 days), unused card credits near period end, welcome-bonus deadlines, quarterly category activation, and tomorrow's trips/check-in.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    ToggleRow(label = "Daily reminders", checked = sync.dailyRemindersEnabled, onChange = { on -> viewModel.updateSync { it.copy(dailyRemindersEnabled = on) } })
+                    ToggleRow(label = "Award watches & transfer-bonus research (uses API)", checked = sync.researchEnabled, onChange = { on -> viewModel.updateSync { it.copy(researchEnabled = on) } })
+                    TextButton(onClick = viewModel::runRemindersNow) { Text("Run reminder check now") }
+                }
+            }
+            item {
+                SectionCard(title = "Backup & export") {
+                    Text("Nothing is stored in the cloud. Export a JSON backup now and then; the CSV is a flat balance sheet for spreadsheets. Secrets are never exported.", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { exportJsonLauncher.launch(BackupRepository.suggestedFileName("json")) }) { Text("Export JSON") }
+                        OutlinedButton(onClick = { exportCsvLauncher.launch(BackupRepository.suggestedFileName("csv")) }) { Text("Export CSV") }
+                    }
+                    TextButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Text("Import JSON backup (merges into current data)") }
                 }
             }
             item {

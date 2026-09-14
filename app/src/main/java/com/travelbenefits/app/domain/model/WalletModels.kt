@@ -16,6 +16,14 @@ data class WalletCard(
     val rewardsBalanceAsOf: Long? = null,
     /** Last four digits, when known - used to match statement emails to this card. */
     val last4: String? = null,
+    val dateOpenedEpochDay: Long? = null,
+    /** Welcome-bonus minimum spend, deadline and progress (whole USD). */
+    val bonusSpendRequiredUsd: Long? = null,
+    val bonusDeadlineEpochDay: Long? = null,
+    val bonusSpendToDateUsd: Long? = null,
+    val bonusEarnedAt: Long? = null,
+    /** Household member who holds this card; null = the app's owner. */
+    val memberName: String? = null,
 )
 
 enum class LoyaltyAccountSource { MANUAL, GMAIL_SCAN }
@@ -38,6 +46,8 @@ data class LoyaltyAccount(
     val qualifyingProgress: Int? = null,
     /** Epoch millis of the last qualifying activity seen - the anchor for inactivity-based expiration. */
     val lastActivityAt: Long? = null,
+    /** Household member who holds this account; null = the app's owner. */
+    val memberName: String? = null,
 ) {
     /** Best available balance, preferring the parsed number. */
     val balanceLabel: String?
@@ -109,6 +119,8 @@ sealed class ResolvedWalletCard {
     data class Catalog(
         override val walletCard: WalletCard,
         val entry: CardCatalogEntry,
+        /** This quarter's rotating categories as recorded by the user, when the card has them. */
+        val rotating: RotatingSelection? = null,
     ) : ResolvedWalletCard() {
         override val displayName: String get() = walletCard.nickname ?: entry.displayName
     }

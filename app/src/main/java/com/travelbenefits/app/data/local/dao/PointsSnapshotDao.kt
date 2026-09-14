@@ -18,6 +18,9 @@ interface PointsSnapshotDao {
     @Query("SELECT * FROM points_snapshots WHERE program = :program ORDER BY recordedAt DESC LIMIT 1")
     suspend fun latestForProgram(program: LoyaltyProgram): PointsSnapshotEntity?
 
+    @Query("SELECT * FROM points_snapshots")
+    suspend fun getAll(): List<PointsSnapshotEntity>
+
     @Insert
     suspend fun insert(snapshot: PointsSnapshotEntity): Long
 

@@ -6,6 +6,7 @@ import com.travelbenefits.app.domain.model.LoyaltyBenefit
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.domain.model.RewardRate
+import com.travelbenefits.app.domain.model.RotatingKind
 import com.travelbenefits.app.domain.model.SpendingCategory as C
 
 /**
@@ -103,6 +104,7 @@ object CardCatalog {
                 RewardRate(C.DRUGSTORES, 3.0),
                 RewardRate(C.TRAVEL_GENERAL, 5.0, "Travel booked through Chase Travel"),
             ),
+            rotatingKind = RotatingKind.QUARTERLY_ACTIVATION,
             dataAsOf = AS_OF,
             notes = "Also earns 5% (multiplier 5.0) in rotating quarterly categories up to \$1,500/quarter after activation - not modeled per-category here since it changes every 3 months; check the current quarter's categories in the Chase app.",
         ),
@@ -288,6 +290,7 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.DISCOVER_CASHBACK,
             baseMultiplier = 1.0,
             categoryRates = emptyList(),
+            rotatingKind = RotatingKind.QUARTERLY_ACTIVATION,
             dataAsOf = AS_OF,
             notes = "5% (multiplier 5.0) in rotating quarterly categories up to \$1,500/quarter after activation, 1% elsewhere - not modeled per-category since it changes every 3 months. New cardholders also get all cash back matched at the end of the first year.",
         ),
@@ -1187,6 +1190,7 @@ object CardCatalog {
             rewardCurrency = RewardCurrency.CASH_BACK,
             baseMultiplier = 1.0,
             categoryRates = emptyList(),
+            rotatingKind = RotatingKind.QUARTERLY_CHOICE,
             dataAsOf = AS_OF_2026,
             notes = "5% cash back on 2 categories you choose each quarter (from options like utilities, streaming, gyms, transit; first \$2,000 combined spend/quarter), plus 5% on prepaid travel via the Rewards Center, and 2% on one chosen everyday category (gas, groceries, or restaurants). Not modeled per-category above since the categories are user-selected each quarter.",
         ),

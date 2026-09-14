@@ -12,6 +12,9 @@ interface TripDao {
     @Query("SELECT * FROM trips ORDER BY startEpochDay IS NULL, startEpochDay DESC, createdAt DESC")
     fun observeAll(): Flow<List<TripEntity>>
 
+    @Query("SELECT * FROM trips")
+    suspend fun getAll(): List<TripEntity>
+
     @Query("SELECT * FROM trips WHERE id = :id LIMIT 1")
     suspend fun findById(id: Long): TripEntity?
 

@@ -25,6 +25,10 @@ data class SyncSettings(
     val scanCardEmails: Boolean = true,
     /** Anthropic API spend guard: at most this many emails are read per sync. */
     val maxEmailsPerSync: Int = 60,
+    /** Daily local check for expiring points/credits/certificates, bonus deadlines, quarter activations and trip reminders. Needs no network. */
+    val dailyRemindersEnabled: Boolean = true,
+    /** Daily award-watch checks and weekly transfer-bonus research via web search (costs API calls). */
+    val researchEnabled: Boolean = false,
 )
 
 @Singleton
@@ -58,6 +62,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             .putBoolean(KEY_SCAN_SHOPS, next.scanShopEmails)
             .putBoolean(KEY_SCAN_CARDS, next.scanCardEmails)
             .putInt(KEY_MAX_EMAILS, next.maxEmailsPerSync)
+            .putBoolean(KEY_DAILY_REMINDERS, next.dailyRemindersEnabled)
+            .putBoolean(KEY_RESEARCH, next.researchEnabled)
             .apply()
         _syncSettings.value = next
     }
@@ -87,6 +93,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             scanShopEmails = prefs.getBoolean(KEY_SCAN_SHOPS, defaults.scanShopEmails),
             scanCardEmails = prefs.getBoolean(KEY_SCAN_CARDS, defaults.scanCardEmails),
             maxEmailsPerSync = prefs.getInt(KEY_MAX_EMAILS, defaults.maxEmailsPerSync),
+            dailyRemindersEnabled = prefs.getBoolean(KEY_DAILY_REMINDERS, defaults.dailyRemindersEnabled),
+            researchEnabled = prefs.getBoolean(KEY_RESEARCH, defaults.researchEnabled),
         )
     }
 
@@ -100,6 +108,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_SCAN_SHOPS = "scan_shop_emails"
         const val KEY_SCAN_CARDS = "scan_card_emails"
         const val KEY_MAX_EMAILS = "max_emails_per_sync"
+        const val KEY_DAILY_REMINDERS = "daily_reminders_enabled"
+        const val KEY_RESEARCH = "research_enabled"
         const val KEY_LAST_SYNC_AT = "last_sync_at"
         const val KEY_LAST_SYNC_SUMMARY = "last_sync_summary"
         const val KEY_ONBOARDED = "has_seen_onboarding"

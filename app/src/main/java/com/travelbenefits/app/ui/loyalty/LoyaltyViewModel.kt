@@ -43,6 +43,8 @@ data class EditAccountState(
     val pointsBalance: String = "",
     val qualifyingProgress: String = "",
     val pointsExpireOn: String = "",
+    val memberName: String = "",
+    val editingId: Long? = null,
 )
 
 @HiltViewModel
@@ -67,7 +69,7 @@ class LoyaltyViewModel @Inject constructor(
                 awardNightsEstimate = insights.awardNightsEstimate(account),
                 history = snapshots.filter { it.program == account.program }.sortedByDescending { it.recordedAt }.take(8),
             )
-        }.sortedWith(compareBy({ it.account.program.kind }, { -(it.estimatedValueUsd ?: -1.0) }))
+        }.sortedWith(compareBy({ it.account.memberName ?: "" }, { it.account.program.kind }, { -(it.estimatedValueUsd ?: -1.0) }))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isGmailConnected: StateFlow<Boolean> = gmailAuthManager.isSignedIn
@@ -85,6 +87,8 @@ class LoyaltyViewModel @Inject constructor(
                 pointsBalance = existing.pointsNumeric?.toString() ?: existing.pointsBalance.orEmpty(),
                 qualifyingProgress = existing.qualifyingProgress?.toString().orEmpty(),
                 pointsExpireOn = existing.pointsExpireAt?.let { LocalDate.ofEpochDay(it / 86_400_000L).toString() }.orEmpty(),
+                memberName = existing.memberName.orEmpty(),
+                editingId = existing.id,
             )
         } else {
             EditAccountState(isOpen = true)
@@ -109,6 +113,8 @@ class LoyaltyViewModel @Inject constructor(
                 pointsBalance = state.pointsBalance.ifBlank { null },
                 qualifyingProgress = state.qualifyingProgress.trim().toIntOrNull(),
                 pointsExpireAt = parseUserDate(state.pointsExpireOn)?.let { LocalDate.ofEpochDay(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() },
+                memberName = state.memberName,
+                editingId = state.editingId,
             )
             closeEdit()
         }

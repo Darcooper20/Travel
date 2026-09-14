@@ -74,6 +74,26 @@ class CardLookupRepository @Inject constructor(
         }
     }
 
+    /** Web-search lookup of a rotating-category card's categories for a quarter. Not cached: it's a once-a-quarter call. */
+    suspend fun lookupRotatingCategories(cardName: String, quarterKey: String): Result<RotatingLookup> {
+        val apiKey = securePrefs.anthropicApiKey
+        if (apiKey.isNullOrBlank()) return Result.failure(IllegalStateException("Add an Anthropic API key in Settings to look up this quarter's categories."))
+        return runCatching {
+            val text = anthropicClient.sendAndGetFinalText(
+                apiKey = apiKey,
+                system = ROTATING_SYSTEM_PROMPT,
+                userText = "Card: $cardName\nQuarter: ${quarterKey.replace("-", " ")}",
+                maxTokens = 800,
+                tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 4)),
+            )
+            val parsed = json.decodeFromString<RotatingAnswer>(stripCodeFences(text))
+            RotatingLookup(
+                categories = parsed.categories.mapNotNull { name -> com.travelbenefits.app.domain.model.SpendingCategory.entries.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) } }.distinct(),
+                note = parsed.asWritten?.let { "Issuer lists: $it" + (parsed.note?.let { n -> " ($n)" } ?: "") } ?: parsed.note,
+            )
+        }
+    }
+
     private fun parseLookupJson(rawText: String): CardLookupResult =
         json.decodeFromString(stripCodeFences(rawText))
 
@@ -82,6 +102,20 @@ class CardLookupRepository @Inject constructor(
         private val CODE_FENCE_REGEX = Regex("^```[a-zA-Z]*\\n|```\\s*$")
 
         fun stripCodeFences(raw: String): String = raw.trim().replace(CODE_FENCE_REGEX, "").trim()
+
+        private val ROTATING_SYSTEM_PROMPT: String
+            get() {
+                val categories = com.travelbenefits.app.domain.model.SpendingCategory.entries.joinToString(", ") { "\"${it.name}\" (${it.label})" }
+                return """
+                    Using web search, find the bonus categories the named credit card
+                    offers (or lets the cardholder choose) for the named calendar
+                    quarter, as announced by the issuer. Map them onto this app's
+                    categories: $categories. Respond with ONLY JSON:
+                    {"categories": [app category names], "asWritten": "the issuer's own wording", "note": "caveats, e.g. activation deadline or spend cap"}
+                    If the quarter's categories haven't been announced yet, return
+                    {"categories": [], "asWritten": null, "note": "not announced yet"}.
+                """.trimIndent()
+            }
 
         private val LOOKUP_SYSTEM_PROMPT = """
             You are a credit card benefits researcher. Use web search to find
@@ -107,3 +141,12 @@ class CardLookupRepository @Inject constructor(
         """.trimIndent()
     }
 }
+
+data class RotatingLookup(val categories: List<com.travelbenefits.app.domain.model.SpendingCategory>, val note: String?)
+
+@kotlinx.serialization.Serializable
+private data class RotatingAnswer(
+    val categories: List<String> = emptyList(),
+    val asWritten: String? = null,
+    val note: String? = null,
+)

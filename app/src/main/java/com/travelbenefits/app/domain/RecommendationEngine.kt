@@ -22,7 +22,16 @@ class RecommendationEngine @Inject constructor() {
 
     private fun toEntry(card: ResolvedWalletCard, category: SpendingCategory): RecommendationEntry = when (card) {
         is ResolvedWalletCard.Catalog -> {
-            val rate = card.entry.rateFor(category)
+            val rotating = card.rotating?.takeIf { category in it.categories }
+            val rate = if (rotating != null && card.entry.rotatingMultiplier > card.entry.rateFor(category).multiplier) {
+                com.travelbenefits.app.domain.model.RewardRate(
+                    category,
+                    card.entry.rotatingMultiplier,
+                    "${rotating.quarterKey.replace("-", " ")} rotating category" + if (rotating.activated) "" else " - NOT ACTIVATED yet",
+                )
+            } else {
+                card.entry.rateFor(category)
+            }
             RecommendationEntry(
                 walletCard = card.walletCard,
                 displayName = card.displayName,

@@ -5,6 +5,11 @@ import androidx.room.Room
 import com.travelbenefits.app.data.local.AppDatabase
 import com.travelbenefits.app.data.local.Migrations
 import com.travelbenefits.app.data.local.dao.ActivityEventDao
+import com.travelbenefits.app.data.local.dao.AwardWatchDao
+import com.travelbenefits.app.data.local.dao.BenefitDao
+import com.travelbenefits.app.data.local.dao.NotifiedAlertDao
+import com.travelbenefits.app.data.local.dao.RotatingCategoryDao
+import com.travelbenefits.app.data.local.dao.TransferBonusDao
 import com.travelbenefits.app.data.local.dao.CardLookupCacheDao
 import com.travelbenefits.app.data.local.dao.LoyaltyAccountDao
 import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
@@ -49,4 +54,19 @@ object DatabaseModule {
 
     @Provides
     fun provideProcessedEmailDao(db: AppDatabase): ProcessedEmailDao = db.processedEmailDao()
+
+    @Provides
+    fun provideBenefitDao(db: AppDatabase): BenefitDao = db.benefitDao()
+
+    @Provides
+    fun provideRotatingCategoryDao(db: AppDatabase): RotatingCategoryDao = db.rotatingCategoryDao()
+
+    @Provides
+    fun provideAwardWatchDao(db: AppDatabase): AwardWatchDao = db.awardWatchDao()
+
+    @Provides
+    fun provideTransferBonusDao(db: AppDatabase): TransferBonusDao = db.transferBonusDao()
+
+    @Provides
+    fun provideNotifiedAlertDao(db: AppDatabase): NotifiedAlertDao = db.notifiedAlertDao()
 }

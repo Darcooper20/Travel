@@ -6,6 +6,10 @@ import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
 import com.travelbenefits.app.data.catalog.TransferPartnerCatalog
 import com.travelbenefits.app.data.repository.LoyaltyRepository
 import com.travelbenefits.app.data.repository.PointsAdvisorRepository
+import com.travelbenefits.app.data.repository.ResearchRepository
+import com.travelbenefits.app.domain.LoyaltyInsights
+import com.travelbenefits.app.domain.model.AwardWatch
+import com.travelbenefits.app.domain.model.TransferBonus
 import com.travelbenefits.app.data.repository.WalletRepository
 import com.travelbenefits.app.domain.PointsOptimizer
 import com.travelbenefits.app.domain.RecommendationEngine
@@ -19,12 +23,15 @@ import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.domain.model.SpendingCategory
 import com.travelbenefits.app.domain.model.TransferOption
 import com.travelbenefits.app.domain.model.TransferPartner
+import com.travelbenefits.app.domain.model.RewardCurrency
+import com.travelbenefits.app.data.local.AppPrefs
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,6 +60,39 @@ data class TransferUiState(
     /** Everything the catalog knows for this program, including currencies the user doesn't hold. */
     val allPartners: List<TransferPartner> = emptyList(),
     val currentBalance: Long? = null,
+    /** Researched bonuses into this program, keyed by source currency. */
+    val bonuses: Map<RewardCurrency, TransferBonus> = emptyMap(),
+    val allBonuses: List<TransferBonus> = emptyList(),
+    val bonusesCheckedAt: Long? = null,
+    val isRefreshingBonuses: Boolean = false,
+)
+
+/** "What your balances buy" row: one program with a balance, translated into nights/flights at the catalog's award bands. */
+data class BalanceBuys(
+    val account: LoyaltyAccount,
+    val balanceLabel: String?,
+    val lowNights: Int?,
+    val typicalNights: Int?,
+    val highNights: Int?,
+    val bandNote: String?,
+)
+
+data class WatchUiState(
+    val watches: List<AwardWatch> = emptyList(),
+    val isChecking: Boolean = false,
+    val message: String? = null,
+    val researchEnabled: Boolean = false,
+)
+
+data class AddWatchState(
+    val isOpen: Boolean = false,
+    val title: String = "",
+    val program: LoyaltyProgram? = null,
+    val origin: String = "",
+    val destination: String = "",
+    val dateFrom: String = "",
+    val dateTo: String = "",
+    val notes: String = "",
 )
 
 data class AdvisorMessage(val isUser: Boolean, val text: String)
@@ -71,6 +111,10 @@ class OptimizeViewModel @Inject constructor(
     private val recommendationEngine: RecommendationEngine,
     private val optimizer: PointsOptimizer,
     private val advisorRepository: PointsAdvisorRepository,
+    private val researchRepository: ResearchRepository,
+    private val insights: LoyaltyInsights,
+    private val appPrefs: AppPrefs,
+    private val syncScheduler: com.travelbenefits.app.work.SyncScheduler,
 ) : ViewModel() {
 
     val cards: StateFlow<List<ResolvedWalletCard>> = walletRepository.observeResolvedCards()
@@ -125,17 +169,92 @@ class OptimizeViewModel @Inject constructor(
 
     // ---- Transfer ----
     private val transferProgram = MutableStateFlow(LoyaltyProgram.WORLD_OF_HYATT)
+    private val refreshingBonuses = MutableStateFlow(false)
 
-    val transferState: StateFlow<TransferUiState> = combine(cards, accounts, transferProgram) { cards, accounts, program ->
+    val transferState: StateFlow<TransferUiState> = combine(cards, accounts, transferProgram, researchRepository.observeBonuses(), refreshingBonuses) { cards, accounts, program, bonuses, refreshing ->
+        val real = bonuses.filter { it.bonusPercent > 0 }
         TransferUiState(
             program = program,
             fromWallet = optimizer.transferOptions(program, cards),
             allPartners = TransferPartnerCatalog.partnersInto(program),
             currentBalance = accounts.firstOrNull { it.program == program }?.pointsNumeric,
+            bonuses = real.filter { it.to == program }.associateBy { it.from },
+            allBonuses = real,
+            bonusesCheckedAt = bonuses.maxOfOrNull { it.checkedAt },
+            isRefreshingBonuses = refreshing,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransferUiState())
 
     fun selectTransferProgram(program: LoyaltyProgram) { transferProgram.value = program }
+
+    fun refreshBonuses() {
+        if (refreshingBonuses.value) return
+        viewModelScope.launch {
+            refreshingBonuses.value = true
+            researchRepository.refreshTransferBonuses().onFailure { e -> _watch.value = _watch.value.copy(message = e.message) }
+            refreshingBonuses.value = false
+        }
+    }
+
+    // ---- What balances buy ----
+    val balanceBuys: StateFlow<List<BalanceBuys>> = accounts.map { list ->
+        list.filter { it.pointsNumeric != null && it.program.kind != com.travelbenefits.app.domain.model.LoyaltyProgramKind.SHOP }.map { a ->
+            val band = insights.profile(a.program).awardBand
+            val pts = a.pointsNumeric ?: 0L
+            BalanceBuys(
+                account = a,
+                balanceLabel = insights.balanceLabel(a),
+                lowNights = band?.let { (pts / it.lowNightPoints).toInt() },
+                typicalNights = band?.let { (pts / it.typicalNightPoints).toInt() },
+                highNights = band?.let { (pts / it.highNightPoints).toInt() },
+                bandNote = band?.note,
+            )
+        }.sortedByDescending { it.typicalNights ?: -1 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ---- Award watches ----
+    private val _watch = MutableStateFlow(WatchUiState())
+    val watchState: StateFlow<WatchUiState> = combine(_watch, researchRepository.observeWatches(), appPrefs.syncSettings) { ui, watches, settings ->
+        ui.copy(watches = watches, researchEnabled = settings.researchEnabled)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WatchUiState())
+
+    private val _addWatch = MutableStateFlow(AddWatchState())
+    val addWatchState: StateFlow<AddWatchState> = _addWatch.asStateFlow()
+
+    fun openAddWatch() { _addWatch.value = AddWatchState(isOpen = true) }
+    fun closeAddWatch() { _addWatch.value = AddWatchState(isOpen = false) }
+    fun updateAddWatch(transform: (AddWatchState) -> AddWatchState) { _addWatch.value = transform(_addWatch.value) }
+
+    fun saveWatch() {
+        val s = _addWatch.value
+        val title = s.title.trim().ifBlank { listOfNotNull(s.origin.trim().ifBlank { null }, s.destination.trim().ifBlank { null }).joinToString(" → ") }
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            researchRepository.addWatch(title, s.program, s.origin.trim().ifBlank { null }, s.destination.trim().ifBlank { null }, s.dateFrom.trim().ifBlank { null }, s.dateTo.trim().ifBlank { null }, s.notes.trim().ifBlank { null })
+            closeAddWatch()
+        }
+    }
+
+    fun setWatchActive(id: Long, active: Boolean) { viewModelScope.launch { researchRepository.setActive(id, active) } }
+    fun deleteWatch(id: Long) { viewModelScope.launch { researchRepository.deleteWatch(id) } }
+
+    fun checkWatchNow(id: Long? = null) {
+        if (_watch.value.isChecking) return
+        viewModelScope.launch {
+            _watch.value = _watch.value.copy(isChecking = true, message = null)
+            researchRepository.checkWatches(onlyId = id).fold(
+                onSuccess = { results -> _watch.value = _watch.value.copy(isChecking = false, message = if (results.isEmpty()) "Nothing to check." else "${results.count { it.found }} of ${results.size} watch(es) look available.") },
+                onFailure = { e -> _watch.value = _watch.value.copy(isChecking = false, message = e.message ?: "Check failed.") },
+            )
+        }
+    }
+
+    fun setResearchEnabled(enabled: Boolean) {
+        appPrefs.update { it.copy(researchEnabled = enabled) }
+        syncScheduler.applyCurrentSettings()
+    }
+
+    fun clearWatchMessage() { _watch.value = _watch.value.copy(message = null) }
 
     fun profileFor(program: LoyaltyProgram) = LoyaltyProgramCatalog.profileFor(program)
 

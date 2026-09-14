@@ -19,6 +19,7 @@ import com.travelbenefits.app.data.remote.gmail.GmailApi
 import com.travelbenefits.app.data.remote.gmail.GmailTextExtractor
 import com.travelbenefits.app.data.remote.gmail.headerValue
 import com.travelbenefits.app.domain.model.ActivityKind
+import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.model.LoyaltyProgram
@@ -46,9 +47,10 @@ data class SyncReport(
     val newTrips: Int = 0,
     val expiryWarnings: Int = 0,
     val cardBalanceUpdates: Int = 0,
+    val certificatesFound: Int = 0,
     val highlights: List<String> = emptyList(),
 ) {
-    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates
+    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + certificatesFound
 
     fun summary(): String = when {
         emailsRead == 0 -> "No new travel or loyalty emails since the last sync."
@@ -60,6 +62,7 @@ data class SyncReport(
             newTrips.takeIf { it > 0 }?.let { "$it new trip(s)" },
             expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
             cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
+            certificatesFound.takeIf { it > 0 }?.let { "$it certificate(s)" },
         ).joinToString(", ") + " from $emailsRead email(s)."
     }
 }
@@ -88,6 +91,7 @@ class EmailMonitorRepository @Inject constructor(
     private val activityEventDao: ActivityEventDao,
     private val processedEmailDao: ProcessedEmailDao,
     private val walletRepository: WalletRepository,
+    private val benefitsRepository: BenefitsRepository,
     private val anthropicClient: AnthropicClient,
     private val securePrefs: SecurePrefs,
     private val appPrefs: AppPrefs,
@@ -285,6 +289,7 @@ class EmailMonitorRepository @Inject constructor(
     // ---- Applying results ------------------------------------------------
 
     private suspend fun apply(extraction: ExtractionResult, candidates: List<EmailCandidate>, now: Long): SyncReport {
+        var certificatesFound = 0
         var cardBalanceUpdates = 0
         var accountsFound = 0
         var balanceChanges = 0
@@ -428,6 +433,20 @@ class EmailMonitorRepository @Inject constructor(
                 }
                 highlights += "${program.displayName} points expiring"
                 event(ActivityKind.POINTS_EXPIRING, program, "${program.displayName}: points expiring${date?.let { " on $it" }.orEmpty()}", item.message, at)
+            } else if (kind == "CERTIFICATE" && item.message != null) {
+                val benefitKind = when {
+                    item.message.contains("night", ignoreCase = true) -> BenefitKind.FREE_NIGHT
+                    item.message.contains("companion", ignoreCase = true) -> BenefitKind.COMPANION
+                    item.message.contains("upgrade", ignoreCase = true) -> BenefitKind.UPGRADE
+                    item.message.contains("lounge", ignoreCase = true) -> BenefitKind.LOUNGE_PASS
+                    else -> BenefitKind.VOUCHER
+                }
+                val inserted = benefitsRepository.addFromEmailIfNew(benefitKind, item.message.trim(), program, parseDate(item.date)?.toEpochDay(), candidate?.subject)
+                if (inserted) {
+                    certificatesFound++
+                    highlights += item.message.trim()
+                    event(ActivityKind.INFO, program, "Certificate found: ${item.message.trim()}", parseDate(item.date)?.let { "Expires $it" }, at)
+                }
             } else if (item.message != null) {
                 event(ActivityKind.INFO, program, item.message, candidate?.subject, at)
             }
@@ -441,6 +460,11 @@ class EmailMonitorRepository @Inject constructor(
                 val candidate = candidateFor(item.sourceIndex)
                 val at = candidate?.receivedAt ?: now
                 val card = matchCard(item, wallet) ?: continue
+                item.newPurchasesUsd?.toLong()?.takeIf { it > 0 }?.let { purchases ->
+                    if (walletRepository.addBonusSpend(card.walletCard.id, purchases, at)) {
+                        event(ActivityKind.INFO, null, "${card.displayName}: +$${LoyaltyAccount.formatPoints(purchases)} toward the welcome bonus", candidate?.subject, at)
+                    }
+                }
                 val previousAsOf = card.walletCard.rewardsBalanceAsOf
                 if (previousAsOf != null && at < previousAsOf) continue
                 val previous = walletRepository.updateRewardsBalance(card.walletCard.id, balance, at, item.last4?.takeLast(4))
@@ -462,6 +486,7 @@ class EmailMonitorRepository @Inject constructor(
         return SyncReport(
             emailsRead = candidates.size,
             cardBalanceUpdates = cardBalanceUpdates,
+            certificatesFound = certificatesFound,
             accountsFound = accountsFound,
             balanceChanges = balanceChanges,
             tierChanges = tierChanges,
@@ -612,10 +637,10 @@ class EmailMonitorRepository @Inject constructor(
                       "alerts": [
                         {
                           "sourceIndex": N,
-                          "kind": "POINTS_EXPIRING" | "TIER_CHANGE" | "OTHER",
+                          "kind": "POINTS_EXPIRING" | "TIER_CHANGE" | "CERTIFICATE" | "OTHER",
                           "program": program name or null,
-                          "date": "YYYY-MM-DD" or null,
-                          "message": one short sentence
+                          "date": "YYYY-MM-DD" or null (for CERTIFICATE: its expiration date),
+                          "message": one short sentence (for CERTIFICATE: the certificate's name, e.g. "Free Night Award up to 35,000 points" or "Companion Pass")
                         }
                       ],
                       "cardRewards": [
@@ -626,7 +651,8 @@ class EmailMonitorRepository @Inject constructor(
                           "last4": string or null (last four digits of the card if shown),
                           "currency": one of $currencyNames or null,
                           "balance": number or null (the current rewards balance: points, miles, or whole dollars of cash back),
-                          "balanceText": string or null (as written, e.g. "84,210 points" or "$123.45 cash back")
+                          "balanceText": string or null (as written, e.g. "84,210 points" or "$123.45 cash back"),
+                          "newPurchasesUsd": number or null (this statement's new purchases/charges total, whole dollars, if the email states it)
                         }
                       ]
                     }
@@ -666,6 +692,7 @@ private data class ExtractedCardRewards(
     val currency: String? = null,
     val balance: Double? = null,
     val balanceText: String? = null,
+    val newPurchasesUsd: Double? = null,
 )
 
 @Serializable

@@ -24,4 +24,6 @@ data class LoyaltyAccountEntity(
     val pointsExpireAt: Long? = null,
     val qualifyingProgress: Int? = null,
     val lastActivityAt: Long? = null,
+    /** Added in DB v4. Null = the app's owner. */
+    val memberName: String? = null,
 )

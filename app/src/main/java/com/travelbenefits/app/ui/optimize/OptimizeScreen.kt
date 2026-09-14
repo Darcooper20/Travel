@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInNew
@@ -29,7 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -58,8 +61,11 @@ import com.travelbenefits.app.ui.common.SectionCard
 import com.travelbenefits.app.ui.common.formatMultiplier
 import com.travelbenefits.app.ui.common.formatPoints
 import com.travelbenefits.app.ui.common.formatUsd
+import com.travelbenefits.app.ui.common.formatEpochDay
+import com.travelbenefits.app.ui.common.formatRelative
+import com.travelbenefits.app.domain.model.AwardWatch
 
-private val tabs = listOf("Earn", "Redeem", "Transfer", "Ask")
+private val tabs = listOf("Earn", "Redeem", "Transfer", "Watch", "Ask")
 
 /** Programs that card points can actually be earned into or transferred to - shops/dining never qualify. */
 private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries.filter { it.kind != LoyaltyProgramKind.SHOP }
@@ -71,7 +77,7 @@ fun OptimizeScreen(viewModel: OptimizeViewModel = hiltViewModel()) {
 
     Scaffold(topBar = { TopAppBar(title = { Text("Maximize points") }) }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            TabRow(selectedTabIndex = tab) {
+            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                 tabs.forEachIndexed { index, title ->
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(title) })
                 }
@@ -80,6 +86,7 @@ fun OptimizeScreen(viewModel: OptimizeViewModel = hiltViewModel()) {
                 0 -> EarnTab(viewModel)
                 1 -> RedeemTab(viewModel)
                 2 -> TransferTab(viewModel)
+                3 -> WatchTab(viewModel)
                 else -> AskTab(viewModel)
             }
         }
@@ -238,6 +245,27 @@ private fun RedeemTab(viewModel: OptimizeViewModel) {
         item {
             Button(onClick = viewModel::evaluateRedeem, enabled = state.cashPrice.isNotBlank() && state.pointsRequired.isNotBlank()) { Text("Compare") }
         }
+        item {
+            val buys by viewModel.balanceBuys.collectAsState()
+            if (buys.isNotEmpty()) {
+                SectionCard(title = "What your balances buy") {
+                    Text("Rough nights (hotels) or one-way flights (airlines) at each program's low / typical / high award levels - estimates from the catalog, not live pricing.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    buys.forEach { b ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(b.account.program.displayName, style = MaterialTheme.typography.bodyMedium)
+                                Text(b.balanceLabel ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(
+                                if (b.typicalNights != null) "${b.lowNights} / ${b.typicalNights} / ${b.highNights}" else "no chart",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            }
+        }
         state.result?.let { result ->
             item { ResultCard(result) }
             item {
@@ -302,6 +330,30 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                 }
             }
         }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Transfer bonuses", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        state.bonusesCheckedAt?.let { "Researched ${formatRelative(it)} via web search - confirm on the bank's transfer page." } ?: "Not checked yet. Turn on research in the Watch tab for weekly checks, or check now.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (state.isRefreshingBonuses) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else TextButton(onClick = viewModel::refreshBonuses) { Text("Check now") }
+            }
+            if (state.allBonuses.isNotEmpty()) {
+                state.allBonuses.forEach { b ->
+                    Text(
+                        "${b.from.displayName} → ${b.to.displayName}: +${b.bonusPercent}%" + (b.endsEpochDay?.let { " until ${formatEpochDay(it)}" } ?: "") + (b.note?.let { " • $it" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (b.to == state.program) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            } else if (state.bonusesCheckedAt != null) {
+                Text("No bonuses running into the app's tracked programs at last check.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
         item { Text("From cards you hold", style = MaterialTheme.typography.titleMedium) }
         if (state.fromWallet.isEmpty()) {
             item {
@@ -320,9 +372,19 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                         Text(option.partner.ratioLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                     Text("1,000 ${option.partner.from.displayName} → ${formatPoints(option.programPointsPer1000.toLong())} ${state.program.displayName} points", style = MaterialTheme.typography.bodySmall)
+                    val bonus = state.bonuses[option.partner.from]
+                    val effectiveRatio = bonus?.effectiveRatio(option.partner.ratio) ?: option.partner.ratio
+                    if (bonus != null) {
+                        Text(
+                            "+${bonus.bonusPercent}% bonus running: 1,000 → ${formatPoints((1000 * effectiveRatio).toLong())}" + (bonus.endsEpochDay?.let { " until ${formatEpochDay(it)}" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                     option.walletCard.walletCard.rewardsBalance?.let { held ->
                         Text(
-                            "You hold ${formatPoints(held)} ${option.partner.from.displayName} → up to ${formatPoints((held * option.partner.ratio).toLong())} ${state.program.displayName} points",
+                            "You hold ${formatPoints(held)} ${option.partner.from.displayName} → up to ${formatPoints((held * effectiveRatio).toLong())} ${state.program.displayName} points",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -353,6 +415,104 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+// --------------------------------------------------------------- Watch
+
+@Composable
+private fun WatchTab(viewModel: OptimizeViewModel) {
+    val state by viewModel.watchState.collectAsState()
+    val add by viewModel.addWatchState.collectAsState()
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+        item {
+            CaveatCard(
+                "Award watches are researched, not live: once a day (if enabled) Claude searches the web for evidence that your route or stay is bookable with points and tells you where to confirm. " +
+                    "No program exposes real inventory to personal apps. Each check is an API call.",
+            )
+        }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Daily research", style = MaterialTheme.typography.titleSmall)
+                    Text("Checks active watches daily and transfer bonuses weekly.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = state.researchEnabled, onCheckedChange = viewModel::setResearchEnabled)
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = viewModel::openAddWatch) { Text("Add watch") }
+                if (state.isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    Text("Researching…", style = MaterialTheme.typography.bodySmall)
+                } else if (state.watches.any { it.active }) {
+                    TextButton(onClick = { viewModel.checkWatchNow() }) { Text("Check all now") }
+                }
+            }
+            state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+        }
+        if (state.watches.isEmpty()) {
+            item { Text("No watches yet. Example: \"Hyatt Regency Kyoto, 3 nights, 2027-03-10 to 03-13, standard award\" or \"SFO → NRT business, October, United or ANA\".", style = MaterialTheme.typography.bodySmall) }
+        }
+        items(state.watches, key = { "w-${it.id}" }) { watch -> WatchRow(watch, viewModel) }
+    }
+
+    if (add.isOpen) {
+        val programOptions: List<LoyaltyProgram?> = listOf<LoyaltyProgram?>(null) + travelPrograms
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::closeAddWatch,
+            title = { Text("Add award watch") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(value = add.title, onValueChange = { v -> viewModel.updateAddWatch { it.copy(title = v) } }, label = { Text("Title (optional)") }, modifier = Modifier.fillMaxWidth())
+                    DropdownPicker(label = "Program", options = programOptions, selected = add.program, optionLabel = { it?.displayName ?: "Any / not sure" }, onSelected = { p -> viewModel.updateAddWatch { it.copy(program = p) } })
+                    OutlinedTextField(value = add.origin, onValueChange = { v -> viewModel.updateAddWatch { it.copy(origin = v) } }, label = { Text("Origin (flights)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = add.destination, onValueChange = { v -> viewModel.updateAddWatch { it.copy(destination = v) } }, label = { Text("Destination / hotel") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = add.dateFrom, onValueChange = { v -> viewModel.updateAddWatch { it.copy(dateFrom = v) } }, label = { Text("From date (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = add.dateTo, onValueChange = { v -> viewModel.updateAddWatch { it.copy(dateTo = v) } }, label = { Text("To date (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = add.notes, onValueChange = { v -> viewModel.updateAddWatch { it.copy(notes = v) } }, label = { Text("Cabin / room / flexibility notes") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(onClick = viewModel::saveWatch, enabled = add.title.isNotBlank() || add.destination.isNotBlank()) { Text("Save") } },
+            dismissButton = { TextButton(onClick = viewModel::closeAddWatch) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun WatchRow(watch: AwardWatch, viewModel: OptimizeViewModel) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = if (watch.lastFound) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(watch.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Switch(checked = watch.active, onCheckedChange = { viewModel.setWatchActive(watch.id, it) })
+            }
+            Text(
+                listOfNotNull(watch.program?.displayName, listOfNotNull(watch.dateFrom, watch.dateTo).joinToString(" → ").ifBlank { null }, watch.notes).joinToString(" • "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                if (watch.lastCheckedAt == null) "Not checked yet" else (if (watch.lastFound) "Looks available" else "Nothing found") + " • checked ${formatRelative(watch.lastCheckedAt)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (watch.lastFound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            watch.lastResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { viewModel.checkWatchNow(watch.id) }) { Text("Check now") }
+                watch.program?.let { p ->
+                    val context = LocalContext.current
+                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.profileFor(p).awardSearchUrl))) }) {
+                        Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Search")
+                    }
+                }
+                TextButton(onClick = { viewModel.deleteWatch(watch.id) }) { Text("Remove") }
+            }
         }
     }
 }

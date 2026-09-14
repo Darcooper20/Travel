@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -22,6 +24,36 @@ class SyncScheduler @Inject constructor(
     fun applyCurrentSettings() {
         val settings = appPrefs.syncSettings.value
         if (settings.autoSyncEnabled) schedule(settings.syncIntervalHours) else cancel()
+        val wm = WorkManager.getInstance(context)
+        if (settings.dailyRemindersEnabled) {
+            wm.enqueueUniquePeriodicWork(
+                DailyInsightsWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<DailyInsightsWorker>(24, TimeUnit.HOURS).build(),
+            )
+        } else {
+            wm.cancelUniqueWork(DailyInsightsWorker.UNIQUE_NAME)
+        }
+        if (settings.researchEnabled) {
+            wm.enqueueUniquePeriodicWork(
+                ResearchWorker.UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                PeriodicWorkRequestBuilder<ResearchWorker>(24, TimeUnit.HOURS)
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .build(),
+            )
+        } else {
+            wm.cancelUniqueWork(ResearchWorker.UNIQUE_NAME)
+        }
+    }
+
+    /** Runs the local reminder check right away (e.g. after the user changes a date) without waiting for the daily slot. */
+    fun runRemindersNow() {
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            DailyInsightsWorker.UNIQUE_NAME + "_now",
+            ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<DailyInsightsWorker>().build(),
+        )
     }
 
     private fun schedule(intervalHours: Int) {

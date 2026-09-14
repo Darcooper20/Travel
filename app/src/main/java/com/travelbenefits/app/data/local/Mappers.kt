@@ -1,11 +1,20 @@
 package com.travelbenefits.app.data.local
 
 import com.travelbenefits.app.data.local.entity.ActivityEventEntity
+import com.travelbenefits.app.data.local.entity.AwardWatchEntity
+import com.travelbenefits.app.data.local.entity.BenefitItemEntity
+import com.travelbenefits.app.data.local.entity.RotatingCategoryEntity
+import com.travelbenefits.app.data.local.entity.TransferBonusEntity
 import com.travelbenefits.app.data.local.entity.LoyaltyAccountEntity
 import com.travelbenefits.app.data.local.entity.PointsSnapshotEntity
 import com.travelbenefits.app.data.local.entity.TripEntity
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 import com.travelbenefits.app.domain.model.ActivityEvent
+import com.travelbenefits.app.domain.model.AwardWatch
+import com.travelbenefits.app.domain.model.BenefitItem
+import com.travelbenefits.app.domain.model.RotatingSelection
+import com.travelbenefits.app.domain.model.SpendingCategory
+import com.travelbenefits.app.domain.model.TransferBonus
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.PointsSnapshot
 import com.travelbenefits.app.domain.model.Trip
@@ -21,6 +30,12 @@ fun WalletCardEntity.toDomain(): WalletCard = WalletCard(
     rewardsBalance = rewardsBalance,
     rewardsBalanceAsOf = rewardsBalanceAsOf,
     last4 = last4,
+    dateOpenedEpochDay = dateOpenedEpochDay,
+    bonusSpendRequiredUsd = bonusSpendRequiredUsd,
+    bonusDeadlineEpochDay = bonusDeadlineEpochDay,
+    bonusSpendToDateUsd = bonusSpendToDateUsd,
+    bonusEarnedAt = bonusEarnedAt,
+    memberName = memberName,
 )
 
 fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(
@@ -36,6 +51,7 @@ fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(
     pointsExpireAt = pointsExpireAt,
     qualifyingProgress = qualifyingProgress,
     lastActivityAt = lastActivityAt,
+    memberName = memberName,
 )
 
 fun TripEntity.toDomain(): Trip = Trip(
@@ -99,4 +115,90 @@ fun ActivityEventEntity.toDomain(): ActivityEvent = ActivityEvent(
     detail = detail,
     occurredAt = occurredAt,
     isRead = isRead,
+)
+
+fun BenefitItemEntity.toDomain(): BenefitItem = BenefitItem(
+    id = id,
+    kind = kind,
+    title = title,
+    program = program,
+    walletCardId = walletCardId,
+    valueUsd = valueUsd,
+    expiresEpochDay = expiresEpochDay,
+    usedAt = usedAt,
+    notes = notes,
+    source = source,
+    sourceEmailSubject = sourceEmailSubject,
+    createdAt = createdAt,
+)
+
+fun BenefitItem.toEntity(): BenefitItemEntity = BenefitItemEntity(
+    id = id,
+    kind = kind,
+    title = title,
+    program = program,
+    walletCardId = walletCardId,
+    valueUsd = valueUsd,
+    expiresEpochDay = expiresEpochDay,
+    usedAt = usedAt,
+    notes = notes,
+    source = source,
+    sourceEmailSubject = sourceEmailSubject,
+    createdAt = createdAt,
+)
+
+fun RotatingCategoryEntity.toDomain(): RotatingSelection = RotatingSelection(
+    walletCardId = walletCardId,
+    quarterKey = quarterKey,
+    categories = categoriesCsv.split(',').mapNotNull { name -> SpendingCategory.entries.firstOrNull { it.name == name.trim() } },
+    activated = activated,
+)
+
+fun RotatingSelection.toEntity(): RotatingCategoryEntity = RotatingCategoryEntity(
+    walletCardId = walletCardId,
+    quarterKey = quarterKey,
+    categoriesCsv = categories.joinToString(",") { it.name },
+    activated = activated,
+)
+
+fun AwardWatchEntity.toDomain(): AwardWatch = AwardWatch(
+    id = id,
+    title = title,
+    program = program,
+    origin = origin,
+    destination = destination,
+    dateFrom = dateFrom,
+    dateTo = dateTo,
+    notes = notes,
+    active = active,
+    createdAt = createdAt,
+    lastCheckedAt = lastCheckedAt,
+    lastResult = lastResult,
+    lastFound = lastFound,
+)
+
+fun AwardWatch.toEntity(): AwardWatchEntity = AwardWatchEntity(
+    id = id,
+    title = title,
+    program = program,
+    origin = origin,
+    destination = destination,
+    dateFrom = dateFrom,
+    dateTo = dateTo,
+    notes = notes,
+    active = active,
+    createdAt = createdAt,
+    lastCheckedAt = lastCheckedAt,
+    lastResult = lastResult,
+    lastFound = lastFound,
+)
+
+fun TransferBonusEntity.toDomain(): TransferBonus = TransferBonus(
+    id = id,
+    from = fromCurrency,
+    to = toProgram,
+    bonusPercent = bonusPercent,
+    endsEpochDay = endsEpochDay,
+    note = note,
+    checkedAt = checkedAt,
 )

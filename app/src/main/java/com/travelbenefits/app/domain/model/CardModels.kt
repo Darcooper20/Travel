@@ -159,6 +159,10 @@ data class CardCatalogEntry(
     val notes: String? = null,
     /** True for a product that's been shut down or closed to new applicants - kept in the catalog for people who already hold it, but never a sensible "use this card" recommendation. */
     val isDiscontinued: Boolean = false,
+    /** Set for cards whose bonus categories rotate or must be chosen each quarter; the user records the current quarter's categories in the app. */
+    val rotatingKind: RotatingKind? = null,
+    /** Multiplier the rotating categories earn (typically 5). */
+    val rotatingMultiplier: Double = 5.0,
 ) {
     fun rateFor(category: SpendingCategory): RewardRate =
         categoryRates.firstOrNull { it.category == category }

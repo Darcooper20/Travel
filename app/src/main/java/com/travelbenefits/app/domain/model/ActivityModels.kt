@@ -39,6 +39,12 @@ data class Alert(
     val detail: String,
     val program: LoyaltyProgram? = null,
     val tripId: Long? = null,
+    /** Stable identity for "already notified about this" dedupe; null = never pushed as a notification. */
+    val notifyKey: String? = null,
+    val destination: Destination = Destination.LOYALTY,
 ) {
     enum class Severity { INFO, WARNING, URGENT }
+
+    /** Which screen the alert opens. */
+    enum class Destination { LOYALTY, TRIPS, CARDS, BENEFITS, OPTIMIZE }
 }

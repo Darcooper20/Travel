@@ -38,8 +38,12 @@ class LoyaltyRepository @Inject constructor(
         pointsBalance: String?,
         qualifyingProgress: Int?,
         pointsExpireAt: Long?,
+        memberName: String? = null,
+        editingId: Long? = null,
     ) {
-        val existing = dao.findByProgram(program)
+        val member = memberName?.trim()?.ifBlank { null }
+        val existing = editingId?.let { id -> dao.getAll().firstOrNull { it.id == id } }
+            ?: if (member == null) dao.findByProgram(program) else dao.findByProgramAndMember(program, member)
         val numeric = LoyaltyAccount.parsePoints(pointsBalance)
         val now = System.currentTimeMillis()
         dao.insert(
@@ -56,9 +60,10 @@ class LoyaltyRepository @Inject constructor(
                 pointsExpireAt = pointsExpireAt ?: existing?.pointsExpireAt,
                 qualifyingProgress = qualifyingProgress,
                 lastActivityAt = now,
+                memberName = member,
             ),
         )
-        if (numeric != null && snapshotDao.latestForProgram(program)?.points != numeric) {
+        if (member == null && numeric != null && snapshotDao.latestForProgram(program)?.points != numeric) {
             snapshotDao.insert(PointsSnapshotEntity(program = program, points = numeric, tier = tier, recordedAt = now, source = LoyaltyAccountSource.MANUAL))
         }
     }
