@@ -65,7 +65,7 @@ class ThreadViewModel @Inject constructor(
     val threadId: StateFlow<Long?> = _threadId
 
     val exchanges: StateFlow<List<ExchangeEntity>> = _threadId
-        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repository.exchanges(id) }
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList<ExchangeEntity>()) else repository.exchanges(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val title: StateFlow<String> = _threadId
