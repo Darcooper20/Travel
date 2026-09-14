@@ -41,6 +41,7 @@ data class SettingsUiState(
     val gmailAccountEmail: String? = null,
     val plaidBackendUrl: String = "",
     val plaidAppToken: String = "",
+    val seatsAeroKey: String = "",
 )
 
 data class PlaidUiState(
@@ -64,6 +65,7 @@ class SettingsViewModel @Inject constructor(
     private val plaidRepository: PlaidRepository,
     private val plaidLinkCoordinator: PlaidLinkCoordinator,
     private val overrideRepository: OverrideRepository,
+    private val offerRepository: com.travelbenefits.app.data.repository.OfferRepository,
     walletRepository: WalletRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -77,6 +79,25 @@ class SettingsViewModel @Inject constructor(
         plaidRepository.observeTransactionCount(),
     ) { items, cards, link, busy, count -> PlaidUiState(items, cards, link, busy, count) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlaidUiState())
+
+    fun onSeatsAeroKeyChange(value: String) {
+        _uiState.value = _uiState.value.copy(seatsAeroKey = value)
+        securePrefs.seatsAeroApiKey = value.trim().ifBlank { null }
+    }
+
+    val preferences: StateFlow<com.travelbenefits.app.domain.model.UserPreferences> = overrideRepository.observeOverrides()
+        .map { com.travelbenefits.app.domain.model.UserPreferences.from(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.travelbenefits.app.domain.model.UserPreferences())
+
+    fun setPreference(key: String, value: String?) { viewModelScope.launch { overrideRepository.set(OverrideRepository.SCOPE_GLOBAL, key, value?.trim()?.ifBlank { null }) } }
+
+    fun resetPreferences() { viewModelScope.launch { com.travelbenefits.app.domain.model.UserPreferences.ALL_KEYS.forEach { overrideRepository.set(OverrideRepository.SCOPE_GLOBAL, it, null) } } }
+
+    val members: StateFlow<List<com.travelbenefits.app.data.repository.HouseholdMember>> = offerRepository.observeMembers()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addMember(name: String) { if (name.isNotBlank()) viewModelScope.launch { offerRepository.addMember(name, null) } }
+    fun deleteMember(id: Long) { viewModelScope.launch { offerRepository.deleteMember(id) } }
 
     fun onPlaidBackendUrlChange(value: String) {
         _uiState.value = _uiState.value.copy(plaidBackendUrl = value)
@@ -130,6 +151,7 @@ class SettingsViewModel @Inject constructor(
             gmailAccountEmail = securePrefs.gmailAccountEmail,
             plaidBackendUrl = securePrefs.plaidBackendUrl.orEmpty(),
             plaidAppToken = securePrefs.plaidAppToken.orEmpty(),
+            seatsAeroKey = securePrefs.seatsAeroApiKey.orEmpty(),
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()

@@ -20,6 +20,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     data object Benefits : Screen("benefits", "Credits & certificates", Icons.Filled.CardGiftcard)
     data object CardValue : Screen("cardvalue", "Card value", Icons.Filled.CreditCard)
     data object Reconcile : Screen("reconcile", "Expected vs received", Icons.Filled.CreditCard)
+    data object Airport : Screen("airport", "Airport mode", Icons.Filled.Luggage)
     data object TripDetail : Screen("trip/{tripId}", "Trip", Icons.Filled.Luggage) {
         fun route(id: Long) = "trip/$id"
     }

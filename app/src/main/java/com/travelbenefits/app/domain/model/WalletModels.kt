@@ -24,6 +24,8 @@ data class WalletCard(
     val bonusEarnedAt: Long? = null,
     /** Household member who holds this card; null = the app's owner. */
     val memberName: String? = null,
+    /** True when this is an authorized-user card (benefits/eligibility differ from the primary cardholder's). null = not set. */
+    val isAuthorizedUser: Boolean? = null,
 )
 
 enum class LoyaltyAccountSource { MANUAL, GMAIL_SCAN }

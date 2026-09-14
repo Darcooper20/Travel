@@ -9,6 +9,8 @@ import com.travelbenefits.app.domain.model.CardLookupResult
 import com.travelbenefits.app.domain.model.Quarters
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.domain.model.SpendingCategory
+import com.travelbenefits.app.data.repository.OfferRepository
+import com.travelbenefits.app.domain.model.MerchantOffer
 import com.travelbenefits.app.ui.common.parseUserDate
 import java.time.LocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +37,20 @@ data class EditCardUiState(
     val bonusDeadline: String = "",
     val bonusSpendToDate: String = "",
     val bonusEarned: Boolean = false,
+    val isAuthorizedUser: Boolean = false,
+)
+
+data class OfferFormState(
+    val isOpen: Boolean = false,
+    val walletCardId: Long? = null,
+    val merchant: String = "",
+    val description: String = "",
+    val value: String = "",
+    val percent: String = "",
+    val minSpend: String = "",
+    val expires: String = "",
+    val enrolled: Boolean = true,
+    val kind: MerchantOffer.Kind = MerchantOffer.Kind.CARD_OFFER,
 )
 
 data class RotatingEditState(
@@ -61,7 +77,32 @@ data class AddCardUiState(
 class WalletViewModel @Inject constructor(
     private val walletRepository: WalletRepository,
     private val cardLookupRepository: CardLookupRepository,
+    private val offerRepository: OfferRepository,
 ) : ViewModel() {
+
+    val offers: StateFlow<List<MerchantOffer>> = offerRepository.observeOffers().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _offerForm = MutableStateFlow(OfferFormState())
+    val offerForm: StateFlow<OfferFormState> = _offerForm.asStateFlow()
+
+    fun openOffer(cardId: Long?) { _offerForm.value = OfferFormState(isOpen = true, walletCardId = cardId) }
+    fun closeOffer() { _offerForm.value = OfferFormState(isOpen = false) }
+    fun updateOffer(transform: (OfferFormState) -> OfferFormState) { _offerForm.value = transform(_offerForm.value) }
+
+    fun saveOffer() {
+        val f = _offerForm.value
+        if (f.merchant.isBlank()) return
+        viewModelScope.launch {
+            offerRepository.addOffer(
+                f.walletCardId, f.merchant, f.description.ifBlank { f.merchant }, f.value.replace("$", "").toDoubleOrNull(), f.percent.replace("%", "").toDoubleOrNull(),
+                f.minSpend.replace("$", "").toDoubleOrNull(), parseUserDate(f.expires), f.enrolled, f.kind, null,
+            )
+            closeOffer()
+        }
+    }
+
+    fun setOfferEnrolled(id: Long, enrolled: Boolean) { viewModelScope.launch { offerRepository.setEnrolled(id, enrolled) } }
+    fun deleteOffer(id: Long) { viewModelScope.launch { offerRepository.deleteOffer(id) } }
 
     val resolvedCards: StateFlow<List<ResolvedWalletCard>> =
         walletRepository.observeResolvedCards()
@@ -89,6 +130,7 @@ class WalletViewModel @Inject constructor(
             bonusDeadline = card.walletCard.bonusDeadlineEpochDay?.let { LocalDate.ofEpochDay(it).toString() }.orEmpty(),
             bonusSpendToDate = card.walletCard.bonusSpendToDateUsd?.toString().orEmpty(),
             bonusEarned = card.walletCard.bonusEarnedAt != null,
+            isAuthorizedUser = card.walletCard.isAuthorizedUser == true,
         )
     }
 
@@ -169,6 +211,7 @@ class WalletViewModel @Inject constructor(
                 bonusDeadlineEpochDay = parseUserDate(s.bonusDeadline),
                 bonusSpendToDateUsd = s.bonusSpendToDate.replace(",", "").replace("$", "").trim().toDoubleOrNull()?.toLong(),
                 bonusEarned = s.bonusEarned,
+                isAuthorizedUser = s.isAuthorizedUser,
             )
             val balance = s.rewardsBalance.trim().replace(",", "").replace("$", "").toDoubleOrNull()?.toLong()
             walletRepository.updateRewardsBalance(s.cardId, balance, System.currentTimeMillis())

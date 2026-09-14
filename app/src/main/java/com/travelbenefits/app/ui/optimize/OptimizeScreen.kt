@@ -579,8 +579,79 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
 private fun WatchTab(viewModel: OptimizeViewModel) {
     val state by viewModel.watchState.collectAsState()
     val add by viewModel.addWatchState.collectAsState()
+    val search by viewModel.awardSearchState.collectAsState()
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+        item { Text("Award search", style = MaterialTheme.typography.titleMedium) }
+        item {
+            if (search.providers.isEmpty()) {
+                CaveatCard("No award data provider is configured. Add a seats.aero Partner API key (cached inventory, paid Pro subscription) or an Anthropic key (AI research leads) in Settings. Results are always labelled by kind; a search with no results never proves there is no availability.")
+            } else {
+                DropdownPicker(label = "Provider", options = search.providers, selected = search.providers.firstOrNull { it.first == search.providerId } ?: search.providers.first(), optionLabel = { it.second }, onSelected = { p -> viewModel.updateSearch { it.copy(providerId = p.first) } })
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = search.origin, onValueChange = { v -> viewModel.updateSearch { it.copy(origin = v) } }, label = { Text("From (IATA)") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = search.destination, onValueChange = { v -> viewModel.updateSearch { it.copy(destination = v) } }, label = { Text("To (IATA)") }, modifier = Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = search.dateFrom, onValueChange = { v -> viewModel.updateSearch { it.copy(dateFrom = v) } }, label = { Text("From date") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = search.dateTo, onValueChange = { v -> viewModel.updateSearch { it.copy(dateTo = v) } }, label = { Text("To date") }, modifier = Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = search.passengers, onValueChange = { v -> viewModel.updateSearch { it.copy(passengers = v) } }, label = { Text("Passengers") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = search.flexibleDays, onValueChange = { v -> viewModel.updateSearch { it.copy(flexibleDays = v) } }, label = { Text("± days") }, modifier = Modifier.weight(1f))
+            }
+        }
+        item { DropdownPicker(label = "Cabin", options = com.travelbenefits.app.domain.model.Cabin.entries, selected = search.cabin, optionLabel = { it.label }, onSelected = { c -> viewModel.updateSearch { it.copy(cabin = c) } }) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = search.nearbyOrigins, onValueChange = { v -> viewModel.updateSearch { it.copy(nearbyOrigins = v) } }, label = { Text("Nearby origins (EWR,LGA)") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = search.nearbyDestinations, onValueChange = { v -> viewModel.updateSearch { it.copy(nearbyDestinations = v) } }, label = { Text("Nearby destinations") }, modifier = Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = viewModel::runAwardSearch, enabled = search.providers.isNotEmpty() && !search.isSearching && search.origin.isNotBlank() && search.destination.isNotBlank() && search.dateFrom.isNotBlank()) { Text("Search") }
+                if (search.isSearching) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+            }
+            search.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        }
+        search.response?.let { r ->
+            item {
+                Text("${r.provider} • ${r.results.size} result(s) • searched ${formatRelative(r.searchedAt)} • ${r.request.passengers} pax, ${r.request.cabin.label}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Coverage: ${r.coverage}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                r.caveats.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary) }
+            }
+            items(r.results.take(60)) { res -> AwardResultRow(res, r.request.passengers) }
+        }
+        if (search.manual.isNotEmpty()) {
+            item { Text("Entered by you", style = MaterialTheme.typography.labelMedium) }
+            items(search.manual) { res -> AwardResultRow(res, 1) }
+        }
+        item {
+            var program by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+            var date by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+            var points by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Add a result by hand (from another tool or after booking)", style = MaterialTheme.typography.labelMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = program, onValueChange = { program = it }, label = { Text("Program") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Date") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = points, onValueChange = { points = it }, label = { Text("Points") }, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { viewModel.addManualResult(program, date, points.replace(",", "").toLongOrNull(), null, null, confirmed = false); program = ""; date = ""; points = "" }, enabled = program.isNotBlank() && date.isNotBlank()) { Text("Add as entered") }
+                    TextButton(onClick = { viewModel.addManualResult(program, date, points.replace(",", "").toLongOrNull(), null, "Booked", confirmed = true); program = ""; date = ""; points = "" }, enabled = program.isNotBlank() && date.isNotBlank()) { Text("Add as booked") }
+                }
+            }
+        }
+        item { Text("Award watches", style = MaterialTheme.typography.titleMedium) }
         item {
             CaveatCard(
                 "Award watches are researched, not live: once a day (if enabled) Claude searches the web for evidence that your route or stay is bookable with points and tells you where to confirm. " +
@@ -633,6 +704,26 @@ private fun WatchTab(viewModel: OptimizeViewModel) {
             confirmButton = { TextButton(onClick = viewModel::saveWatch, enabled = add.title.isNotBlank() || add.destination.isNotBlank()) { Text("Save") } },
             dismissButton = { TextButton(onClick = viewModel::closeAddWatch) { Text("Cancel") } },
         )
+    }
+}
+
+@Composable
+private fun AwardResultRow(res: com.travelbenefits.app.domain.model.AwardResult, passengers: Int) {
+    val enough = res.enoughSeats(passengers)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("${res.date} • ${res.origin} → ${res.destination} • ${res.cabin.label}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(res.pointsPerPassenger?.let { "${formatPoints(it)} pts" } ?: "pts ?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                listOfNotNull(res.program, res.airlines, res.taxesFeesUsd?.let { "+$${"%,.0f".format(it)} taxes" }, res.seatsRemaining?.let { "$it seat(s)" + if (enough == false) " - fewer than $passengers pax" else "" }, res.isDirect?.let { if (it) "nonstop" else "connecting" }, res.mixedCabin?.let { if (it) "mixed cabin" else null }).joinToString(" • "),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(res.kind.label + (res.asOf?.let { " • as of $it" } ?: ""), style = MaterialTheme.typography.labelSmall, color = when (res.kind) { com.travelbenefits.app.domain.model.ResultKind.USER_CONFIRMED -> MaterialTheme.colorScheme.primary; com.travelbenefits.app.domain.model.ResultKind.RESEARCH_LEAD -> MaterialTheme.colorScheme.tertiary; else -> MaterialTheme.colorScheme.onSurfaceVariant })
+            res.note?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+            res.bookingUrl?.let { url -> val context = LocalContext.current; TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }) { Text("Open source") } }
+        }
     }
 }
 

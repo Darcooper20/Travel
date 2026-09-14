@@ -106,10 +106,12 @@ class WalletRepository @Inject constructor(
         bonusDeadlineEpochDay: Long?,
         bonusSpendToDateUsd: Long?,
         bonusEarned: Boolean,
+        isAuthorizedUser: Boolean? = null,
     ) {
         val existing = walletCardDao.findById(id) ?: return
         walletCardDao.update(
             existing.copy(
+                isAuthorizedUser = isAuthorizedUser ?: existing.isAuthorizedUser,
                 nickname = nickname,
                 last4 = last4,
                 notes = notes,

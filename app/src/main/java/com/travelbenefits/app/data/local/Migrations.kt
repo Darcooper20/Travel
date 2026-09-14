@@ -276,5 +276,17 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+    /** v8 -> v9: merchant offers, household members, authorized-user flag. */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `isAuthorizedUser` INTEGER")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `merchant_offers` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `walletCardId` INTEGER, `merchant` TEXT NOT NULL, `description` TEXT NOT NULL, " +
+                    "`valueUsd` REAL, `percentBack` REAL, `minSpendUsd` REAL, `expiresEpochDay` INTEGER, `enrolled` INTEGER NOT NULL, `kind` TEXT NOT NULL, `source` TEXT NOT NULL, `notes` TEXT, `createdAt` INTEGER NOT NULL)",
+            )
+            db.execSQL("CREATE TABLE IF NOT EXISTS `members` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `isOwner` INTEGER NOT NULL, `notes` TEXT)")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 }

@@ -64,6 +64,8 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val plaid by viewModel.plaidState.collectAsState()
     val valuations by viewModel.valuations.collectAsState()
+    val prefs by viewModel.preferences.collectAsState()
+    val members by viewModel.members.collectAsState()
     val sync by viewModel.syncSettings.collectAsState()
     val isGmailConnected by viewModel.isGmailConnected.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -235,6 +237,43 @@ fun SettingsScreen(
                 }
             }
             item {
+                SectionCard(title = "Travel preferences") {
+                    Text("Used by award search defaults, the advisor and the cash-vs-points band. Nothing is learned silently: these are the only inputs, and Reset clears them.", style = MaterialTheme.typography.bodySmall)
+                    PrefField("Home airports (IATA, comma-separated)", prefs.homeAirports.joinToString(",")) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_HOME_AIRPORTS, it) }
+                    PrefField("Preferred airlines", prefs.preferredAirlines.joinToString(",")) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_AIRLINES, it) }
+                    PrefField("Preferred hotel brands", prefs.preferredHotels.joinToString(",")) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_HOTELS, it) }
+                    DropdownPicker(label = "Usual cabin", options = com.travelbenefits.app.domain.model.Cabin.entries, selected = prefs.cabin, optionLabel = { it.label }, onSelected = { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_CABIN, it.name) })
+                    PrefField("Budget per trip (USD)", prefs.budgetUsdPerTrip?.toString().orEmpty()) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_BUDGET, it) }
+                    PrefField("Date flexibility (± days)", prefs.flexibilityDays.toString()) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_FLEX, it) }
+                    PrefField("Max connections", prefs.maxConnections.toString()) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_CONNECTIONS, it) }
+                    PrefField("Prefer points over cash (0-100)", prefs.pointsPreference.toString()) { viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_POINTS_PREF, it) }
+                    ToggleRow(label = "Convenience over value", checked = prefs.convenienceOverValue, onChange = { on -> viewModel.setPreference(com.travelbenefits.app.domain.model.UserPreferences.KEY_CONVENIENCE, on.toString()) })
+                    TextButton(onClick = viewModel::resetPreferences) { Text("Reset preferences") }
+                }
+            }
+            item {
+                SectionCard(title = "Household") {
+                    Text("Members are labels for who holds a card or account. Nothing assumes balances can be pooled - each program's pooling rule is shown on the Loyalty screen.", style = MaterialTheme.typography.bodySmall)
+                    members.forEach { m ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(m.name + if (m.isOwner) " (owner)" else "", style = MaterialTheme.typography.bodyMedium)
+                            if (!m.isOwner) TextButton(onClick = { viewModel.deleteMember(m.id) }) { Text("Remove") }
+                        }
+                    }
+                    var newMember by remember { mutableStateOf("") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(value = newMember, onValueChange = { newMember = it }, label = { Text("Add member") }, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.addMember(newMember); newMember = "" }) { Text("Add") }
+                    }
+                }
+            }
+            item {
+                SectionCard(title = "Award data provider (optional)") {
+                    Text("seats.aero Partner API key (requires their Pro subscription). Results are cached inventory, labelled as such. Without a key, award search falls back to AI research leads.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = state.seatsAeroKey, onValueChange = viewModel::onSeatsAeroKeyChange, label = { Text("Partner-Authorization key") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                }
+            }
+            item {
                 SectionCard(title = "Your point valuations (¢ per point)") {
                     Text("Used by the best-card picker, cash-vs-points and card value instead of the app's estimates. Leave blank to use the estimate.", style = MaterialTheme.typography.bodySmall)
                     RewardCurrency.entries.filter { !it.displayAsPercent && it != RewardCurrency.GENERIC_POINTS }.forEach { c ->
@@ -311,6 +350,15 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PrefField(label: String, value: String, onSave: (String) -> Unit) {
+    var text by remember(value) { mutableStateOf(value) }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(label) }, modifier = Modifier.weight(1f))
+        TextButton(onClick = { onSave(text) }) { Text("Save") }
     }
 }
 

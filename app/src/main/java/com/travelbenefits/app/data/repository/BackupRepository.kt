@@ -141,8 +141,8 @@ class BackupRepository @Inject constructor(
     private fun csv(value: String): String = if (value.any { it == ',' || it == '"' || it == '\n' }) "\"" + value.replace("\"", "\"\"") + "\"" else value
     private fun source(name: String): LoyaltyAccountSource = runCatching { LoyaltyAccountSource.valueOf(name) }.getOrDefault(LoyaltyAccountSource.MANUAL)
 
-    private fun WalletCardEntity.toBackup() = WalletCardBackup(id, nickname, catalogCardId, customCardName, dateAdded, notes, rewardsBalance, rewardsBalanceAsOf, last4, dateOpenedEpochDay, bonusSpendRequiredUsd, bonusDeadlineEpochDay, bonusSpendToDateUsd, bonusEarnedAt, memberName)
-    private fun WalletCardBackup.toEntity(id: Long) = WalletCardEntity(id, nickname, catalogCardId, customCardName, dateAdded, notes, rewardsBalance, rewardsBalanceAsOf, last4, dateOpenedEpochDay, bonusSpendRequiredUsd, bonusDeadlineEpochDay, bonusSpendToDateUsd, bonusEarnedAt, memberName)
+    private fun WalletCardEntity.toBackup() = WalletCardBackup(id, nickname, catalogCardId, customCardName, dateAdded, notes, rewardsBalance, rewardsBalanceAsOf, last4, dateOpenedEpochDay, bonusSpendRequiredUsd, bonusDeadlineEpochDay, bonusSpendToDateUsd, bonusEarnedAt, memberName, isAuthorizedUser)
+    private fun WalletCardBackup.toEntity(id: Long) = WalletCardEntity(id, nickname, catalogCardId, customCardName, dateAdded, notes, rewardsBalance, rewardsBalanceAsOf, last4, dateOpenedEpochDay, bonusSpendRequiredUsd, bonusDeadlineEpochDay, bonusSpendToDateUsd, bonusEarnedAt, memberName, isAuthorizedUser)
     private fun LoyaltyAccountEntity.toBackup() = LoyaltyAccountBackup(program.name, membershipNumber, tier, pointsBalance, source.name, sourceEmailSubject, lastUpdated, pointsNumeric, pointsExpireAt, qualifyingProgress, lastActivityAt, memberName)
     private fun LoyaltyAccountBackup.toEntity(program: LoyaltyProgram, id: Long) = LoyaltyAccountEntity(id, program, membershipNumber, tier, pointsBalance, source(source), sourceEmailSubject, lastUpdated, pointsNumeric, pointsExpireAt, qualifyingProgress, lastActivityAt, memberName)
     private fun TripEntity.toBackup() = TripBackup(kind.name, provider, confirmationNumber, title, startEpochDay, endEpochDay, origin, destination, loyaltyProgram?.name, loyaltyNumberOnBooking, totalCost, pointsUsed, pointsEarnedEstimate, source.name, sourceEmailSubject, sourceMessageId, notes, createdAt)
@@ -188,6 +188,7 @@ private data class WalletCardBackup(
     val id: Long, val nickname: String?, val catalogCardId: String?, val customCardName: String?, val dateAdded: Long, val notes: String?,
     val rewardsBalance: Long? = null, val rewardsBalanceAsOf: Long? = null, val last4: String? = null, val dateOpenedEpochDay: Long? = null,
     val bonusSpendRequiredUsd: Long? = null, val bonusDeadlineEpochDay: Long? = null, val bonusSpendToDateUsd: Long? = null, val bonusEarnedAt: Long? = null, val memberName: String? = null,
+    val isAuthorizedUser: Boolean? = null,
 )
 
 @Serializable

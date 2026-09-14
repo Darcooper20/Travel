@@ -56,6 +56,11 @@ class SecurePrefs @Inject constructor(@ApplicationContext context: Context) {
         get() = prefs.getString(KEY_PLAID_APP_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_PLAID_APP_TOKEN, value).apply()
 
+    /** seats.aero Partner API key (Pro subscription), optional. */
+    var seatsAeroApiKey: String?
+        get() = prefs.getString(KEY_SEATS_AERO, null)
+        set(value) = prefs.edit().putString(KEY_SEATS_AERO, value).apply()
+
     fun clearGmailAuth() {
         prefs.edit()
             .remove(KEY_GMAIL_AUTH_STATE)
@@ -70,5 +75,6 @@ class SecurePrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_GMAIL_ACCOUNT_EMAIL = "gmail_account_email"
         const val KEY_PLAID_BACKEND_URL = "plaid_backend_url"
         const val KEY_PLAID_APP_TOKEN = "plaid_app_token"
+        const val KEY_SEATS_AERO = "seats_aero_api_key"
     }
 }

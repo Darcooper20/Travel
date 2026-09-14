@@ -74,6 +74,7 @@ fun DashboardScreen(
     onOpenBenefits: () -> Unit,
     onOpenCardValue: () -> Unit = {},
     onOpenReconcile: () -> Unit = {},
+    onOpenAirport: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -171,6 +172,9 @@ fun DashboardScreen(
                 }
             }
 
+            if (state.upcomingTrips.any { it.kind == com.travelbenefits.app.domain.model.TripKind.FLIGHT && (it.startEpochDay ?: Long.MAX_VALUE) - java.time.LocalDate.now().toEpochDay() <= 2 }) {
+                item { QuickTile(Modifier.fillMaxWidth(), Icons.Filled.Flight, "Airport mode", "Confirmations, member numbers, lounge access - offline", onOpenAirport) }
+            }
             if (state.upcomingTrips.isNotEmpty()) {
                 item { Text("Coming up", style = MaterialTheme.typography.titleMedium) }
                 items(state.upcomingTrips, key = { "trip-${it.id}" }) { trip -> UpcomingTripRow(trip, onOpenTrips) }

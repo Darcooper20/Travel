@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.travelbenefits.app.data.repository.BenefitsRepository
 import com.travelbenefits.app.data.repository.WalletRepository
+import com.travelbenefits.app.data.repository.TripRepository
+import com.travelbenefits.app.domain.CertificateMatcher
 import com.travelbenefits.app.domain.model.BenefitItem
 import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.CreditStatus
@@ -28,6 +30,7 @@ data class BenefitsUiState(
     val cards: List<ResolvedWalletCard> = emptyList(),
     val unusedCreditValueUsd: Double = 0.0,
     val expiringSoonCount: Int = 0,
+    val suggestions: List<CertificateMatcher.Suggestion> = emptyList(),
 )
 
 /** Dialog for recording a movement against one credit. */
@@ -56,13 +59,16 @@ data class EditBenefitState(
 class BenefitsViewModel @Inject constructor(
     private val benefitsRepository: BenefitsRepository,
     walletRepository: WalletRepository,
+    tripRepository: TripRepository,
+    private val matcher: CertificateMatcher,
 ) : ViewModel() {
 
     val uiState: StateFlow<BenefitsUiState> = combine(
         benefitsRepository.observeCreditStatuses(),
         benefitsRepository.observeItems(),
         walletRepository.observeResolvedCards(),
-    ) { credits, items, cards ->
+        tripRepository.observeTrips(),
+    ) { credits, items, cards, trips ->
         val today = LocalDate.now().toEpochDay()
         BenefitsUiState(
             credits = credits.sortedWith(compareBy({ !it.isAvailable && it.state != com.travelbenefits.app.domain.model.CreditState.NEEDS_CONFIRMATION }, { it.periodEndsEpochDay })),
@@ -71,6 +77,7 @@ class BenefitsViewModel @Inject constructor(
             unusedCreditValueUsd = credits.filter { it.isAvailable }.sumOf { it.periodValueUsd },
             expiringSoonCount = credits.count { it.isAvailable && it.periodEndsEpochDay - today <= 30 } +
                 items.count { !it.isUsed && it.expiresEpochDay != null && it.expiresEpochDay - today <= 30 },
+            suggestions = matcher.suggest(items, trips),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BenefitsUiState())
 

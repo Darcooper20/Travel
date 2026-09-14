@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.travelbenefits.app.domain.model.SpendingCategory
+import com.travelbenefits.app.domain.model.MerchantOffer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -55,6 +56,8 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
     val addCardState by viewModel.addCardState.collectAsState()
     val editCardState by viewModel.editCardState.collectAsState()
     val rotatingState by viewModel.rotatingState.collectAsState()
+    val offers by viewModel.offers.collectAsState()
+    val offerForm by viewModel.offerForm.collectAsState()
     var pendingDelete by remember { mutableStateOf<ResolvedWalletCard?>(null) }
 
     Scaffold(
@@ -89,6 +92,25 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Offers & portals (${offers.size})", style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { viewModel.openOffer(null) }) { Text("Add") }
+                        }
+                        Text("Enrolled card-linked offers stack onto the purchase picker's value for that merchant; portals and unenrolled offers appear as notes only.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        offers.forEach { o ->
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Checkbox(checked = o.enrolled, onCheckedChange = { viewModel.setOfferEnrolled(o.id, it) })
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("${o.merchant}: ${o.description}", style = MaterialTheme.typography.bodySmall)
+                                    Text(listOfNotNull(o.kind.label, cards.firstOrNull { it.walletCard.id == o.walletCardId }?.displayName, o.expiresEpochDay?.let { "expires " + com.travelbenefits.app.ui.common.formatEpochDay(it) }, if (o.enrolled) "enrolled" else "not enrolled").joinToString(" • "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { viewModel.deleteOffer(o.id) }) { Icon(Icons.Filled.Delete, contentDescription = "Remove offer") }
+                            }
+                        }
+                    }
+                }
                 items(cards, key = { it.walletCard.id }) { card ->
                     WalletCardRow(
                         card = card,
@@ -112,6 +134,34 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
                 }) { Text("Remove") }
             },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Cancel") } },
+        )
+    }
+
+    if (offerForm.isOpen) {
+        val cardOptions: List<ResolvedWalletCard?> = listOf<ResolvedWalletCard?>(null) + cards
+        AlertDialog(
+            onDismissRequest = viewModel::closeOffer,
+            title = { Text("Add offer") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    com.travelbenefits.app.ui.common.DropdownPicker(label = "Kind", options = MerchantOfferKindList, selected = offerForm.kind, optionLabel = { it.label }, onSelected = { k -> viewModel.updateOffer { it.copy(kind = k) } })
+                    com.travelbenefits.app.ui.common.DropdownPicker(label = "Card (card-linked offers)", options = cardOptions, selected = cards.firstOrNull { it.walletCard.id == offerForm.walletCardId }, optionLabel = { it?.displayName ?: "Any / portal" }, onSelected = { c -> viewModel.updateOffer { it.copy(walletCardId = c?.walletCard?.id) } })
+                    OutlinedTextField(value = offerForm.merchant, onValueChange = { v -> viewModel.updateOffer { it.copy(merchant = v) } }, label = { Text("Merchant") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = offerForm.description, onValueChange = { v -> viewModel.updateOffer { it.copy(description = v) } }, label = { Text("Offer (e.g. \$20 back on \$100)") }, modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = offerForm.value, onValueChange = { v -> viewModel.updateOffer { it.copy(value = v) } }, label = { Text("$ value") }, modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = offerForm.percent, onValueChange = { v -> viewModel.updateOffer { it.copy(percent = v) } }, label = { Text("% back") }, modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = offerForm.minSpend, onValueChange = { v -> viewModel.updateOffer { it.copy(minSpend = v) } }, label = { Text("Min $") }, modifier = Modifier.weight(1f))
+                    }
+                    OutlinedTextField(value = offerForm.expires, onValueChange = { v -> viewModel.updateOffer { it.copy(expires = v) } }, label = { Text("Expires (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(checked = offerForm.enrolled, onCheckedChange = { c -> viewModel.updateOffer { it.copy(enrolled = c) } })
+                        Text("Enrolled / activated", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = viewModel::saveOffer, enabled = offerForm.merchant.isNotBlank()) { Text("Save") } },
+            dismissButton = { TextButton(onClick = viewModel::closeOffer) { Text("Cancel") } },
         )
     }
 
@@ -285,6 +335,10 @@ private fun EditCardDialog(
                     androidx.compose.material3.Checkbox(checked = state.bonusEarned, onCheckedChange = { c -> onChange { it.copy(bonusEarned = c) } })
                     Text("Bonus already earned", style = MaterialTheme.typography.bodyMedium)
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Checkbox(checked = state.isAuthorizedUser, onCheckedChange = { c -> onChange { it.copy(isAuthorizedUser = c) } })
+                    Text("Authorized-user card (perks may differ from the primary's)", style = MaterialTheme.typography.bodyMedium)
+                }
                 OutlinedTextField(
                     value = state.notes,
                     onValueChange = { v -> onChange { it.copy(notes = v) } },
@@ -297,6 +351,8 @@ private fun EditCardDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+private val MerchantOfferKindList = MerchantOffer.Kind.entries.toList()
 
 @Composable
 private fun RotatingDialog(

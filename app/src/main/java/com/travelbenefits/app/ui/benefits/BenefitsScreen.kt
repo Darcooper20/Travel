@@ -96,6 +96,14 @@ fun BenefitsScreen(onBack: () -> Unit, viewModel: BenefitsViewModel = hiltViewMo
             }
             items(state.items, key = { "b-${it.id}" }) { item ->
                 BenefitRow(item, today, onToggle = { viewModel.toggleItemUsed(item) }, onEdit = { viewModel.openAdd(item) }, onDelete = { viewModel.deleteItem(item.id) })
+                state.suggestions.firstOrNull { it.certificate.id == item.id }?.let { sg ->
+                    Text(
+                        "Use it: ${sg.fit.label}" + (sg.trip?.let { " - ${it.title}" } ?: "") + (if (sg.reasons.isNotEmpty()) ". " + sg.reasons.joinToString(" ") else ""),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (sg.fit == com.travelbenefits.app.domain.CertificateMatcher.Fit.GOOD) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
             }
 
             item { Text("Card credits", style = MaterialTheme.typography.titleMedium) }

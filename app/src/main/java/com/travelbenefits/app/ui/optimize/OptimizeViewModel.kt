@@ -17,6 +17,14 @@ import com.travelbenefits.app.domain.model.BookingChannel
 import com.travelbenefits.app.domain.model.Confidence
 import com.travelbenefits.app.domain.model.PurchaseQuery
 import com.travelbenefits.app.domain.model.PurchaseRecommendation
+import com.travelbenefits.app.data.repository.OfferRepository
+import com.travelbenefits.app.data.repository.AwardSearchRepository
+import com.travelbenefits.app.domain.model.AwardResult
+import com.travelbenefits.app.domain.model.AwardSearchRequest
+import com.travelbenefits.app.domain.model.AwardSearchResponse
+import com.travelbenefits.app.domain.model.Cabin
+import com.travelbenefits.app.domain.model.ResultKind
+import com.travelbenefits.app.domain.model.UserPreferences
 import com.travelbenefits.app.domain.model.SpendPeriod
 import com.travelbenefits.app.domain.model.SpendReport
 import com.travelbenefits.app.domain.LoyaltyInsights
@@ -112,6 +120,25 @@ data class SpendUiState(
     val message: String? = null,
 )
 
+data class AwardSearchUiState(
+    val origin: String = "",
+    val destination: String = "",
+    val dateFrom: String = "",
+    val dateTo: String = "",
+    val cabin: Cabin = Cabin.ECONOMY,
+    val passengers: String = "1",
+    val flexibleDays: String = "0",
+    val nearbyOrigins: String = "",
+    val nearbyDestinations: String = "",
+    val providerId: String = "",
+    val providers: List<Pair<String, String>> = emptyList(),
+    val isSearching: Boolean = false,
+    val response: AwardSearchResponse? = null,
+    val manual: List<AwardResult> = emptyList(),
+    val error: String? = null,
+    val prefs: UserPreferences = UserPreferences(),
+)
+
 data class WatchUiState(
     val watches: List<AwardWatch> = emptyList(),
     val isChecking: Boolean = false,
@@ -157,6 +184,8 @@ class OptimizeViewModel @Inject constructor(
     private val merchantClassifier: MerchantClassifier,
     private val capUsageCalculator: CapUsageCalculator,
     private val overrideRepository: OverrideRepository,
+    private val offerRepository: OfferRepository,
+    private val awardSearchRepository: AwardSearchRepository,
 ) : ViewModel() {
 
 
@@ -208,7 +237,8 @@ class OptimizeViewModel @Inject constructor(
         cards,
         plaidRepository.observeTransactions(),
         overrideRepository.observeOverrides(),
-    ) { form, cards, txns, overrides ->
+        offerRepository.observeOffers(),
+    ) { form, cards, txns, overrides, offers ->
         val guess = if (form.merchant.isBlank()) null else merchantClassifier.classify(form.merchant, txns)
         val category = form.categoryOverride ?: guess?.category
         val amount = form.amount.replace("$", "").replace(",", "").trim().toDoubleOrNull()
@@ -222,6 +252,7 @@ class OptimizeViewModel @Inject constructor(
                 cards,
                 capUsageCalculator.compute(cards, txns, overrideRepository.capSpend(overrides)),
                 overrideRepository.valuations(overrides),
+                offers,
             )
         } else null
         form.copy(guessedCategory = guess?.category, guessConfidence = guess?.confidence ?: Confidence.LOW, guessSource = guess?.source, recommendation = recommendation)
@@ -367,6 +398,47 @@ class OptimizeViewModel @Inject constructor(
                 onFailure = { e -> _watch.value = _watch.value.copy(isChecking = false, message = e.message ?: "Check failed.") },
             )
         }
+    }
+
+    // ---- Award search (providers) ----
+    private val searchForm = MutableStateFlow(AwardSearchUiState())
+    val awardSearchState: StateFlow<AwardSearchUiState> = combine(searchForm, awardSearchRepository.manualResults, overrideRepository.observeOverrides()) { f, manual, overrides ->
+        val prefs = UserPreferences.from(overrides)
+        f.copy(manual = manual, prefs = prefs, origin = f.origin.ifBlank { prefs.homeAirports.firstOrNull().orEmpty() }, cabin = if (f.response == null && f.origin.isBlank()) prefs.cabin else f.cabin, flexibleDays = if (f.flexibleDays == "0" && prefs.flexibilityDays > 0) prefs.flexibilityDays.toString() else f.flexibleDays)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AwardSearchUiState())
+
+    init {
+        viewModelScope.launch {
+            val available = awardSearchRepository.availableProviders().map { it.id to it.displayName }
+            searchForm.value = searchForm.value.copy(providers = available, providerId = available.firstOrNull()?.first.orEmpty())
+        }
+    }
+
+    fun updateSearch(transform: (AwardSearchUiState) -> AwardSearchUiState) { searchForm.value = transform(searchForm.value) }
+
+    fun runAwardSearch() {
+        val f = searchForm.value
+        if (f.isSearching || f.origin.isBlank() || f.destination.isBlank()) return
+        viewModelScope.launch {
+            val available = awardSearchRepository.availableProviders().map { it.id to it.displayName }
+            val providerId = f.providerId.ifBlank { available.firstOrNull()?.first.orEmpty() }
+            searchForm.value = f.copy(isSearching = true, error = null, providers = available, providerId = providerId)
+            val req = AwardSearchRequest(
+                origin = f.origin.trim().uppercase(), destination = f.destination.trim().uppercase(), dateFrom = f.dateFrom.trim(), dateTo = f.dateTo.trim().ifBlank { f.dateFrom.trim() },
+                cabin = f.cabin, passengers = f.passengers.toIntOrNull()?.coerceIn(1, 9) ?: 1, flexibleDays = f.flexibleDays.toIntOrNull()?.coerceIn(0, 14) ?: 0,
+                nearbyOrigins = f.nearbyOrigins.split(',').map { it.trim() }.filter { it.isNotBlank() }, nearbyDestinations = f.nearbyDestinations.split(',').map { it.trim() }.filter { it.isNotBlank() },
+                maxConnections = f.prefs.maxConnections,
+            )
+            awardSearchRepository.search(providerId, req).fold(
+                onSuccess = { r -> searchForm.value = searchForm.value.copy(isSearching = false, response = r) },
+                onFailure = { e -> searchForm.value = searchForm.value.copy(isSearching = false, error = e.message ?: "Search failed.") },
+            )
+        }
+    }
+
+    fun addManualResult(program: String, date: String, points: Long?, taxes: Double?, note: String?, confirmed: Boolean) {
+        val f = searchForm.value
+        awardSearchRepository.addManual(AwardResult(if (confirmed) ResultKind.USER_CONFIRMED else ResultKind.USER_ENTERED, "you", program, f.origin, f.destination, date, f.cabin, points, taxes, null, null, null, null, null, System.currentTimeMillis().toString(), note))
     }
 
     fun setResearchEnabled(enabled: Boolean) {

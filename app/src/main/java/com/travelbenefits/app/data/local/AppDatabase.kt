@@ -19,6 +19,8 @@ import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
 import com.travelbenefits.app.data.local.dao.ProcessedEmailDao
 import com.travelbenefits.app.data.local.dao.TripDao
 import com.travelbenefits.app.data.local.dao.TripDetailDao
+import com.travelbenefits.app.data.local.dao.MerchantOfferDao
+import com.travelbenefits.app.data.local.dao.MemberDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
 import com.travelbenefits.app.data.local.entity.ActionStateEntity
 import com.travelbenefits.app.data.local.entity.ActivityEventEntity
@@ -42,6 +44,8 @@ import com.travelbenefits.app.data.local.entity.TripSegmentEntity
 import com.travelbenefits.app.data.local.entity.TripEventEntity
 import com.travelbenefits.app.data.local.entity.ExpectationEntity
 import com.travelbenefits.app.data.local.entity.AttributionEventEntity
+import com.travelbenefits.app.data.local.entity.MerchantOfferEntity
+import com.travelbenefits.app.data.local.entity.MemberEntity
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 
 @Database(
@@ -69,8 +73,10 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
         TripEventEntity::class,
         ExpectationEntity::class,
         AttributionEventEntity::class,
+        MerchantOfferEntity::class,
+        MemberEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -92,6 +98,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun actionStateDao(): ActionStateDao
     abstract fun userOverrideDao(): UserOverrideDao
     abstract fun tripDetailDao(): TripDetailDao
+    abstract fun merchantOfferDao(): MerchantOfferDao
+    abstract fun memberDao(): MemberDao
 
     companion object {
         const val DATABASE_NAME = "travel_benefits.db"

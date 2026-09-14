@@ -3,6 +3,7 @@ package com.travelbenefits.app.domain
 import com.travelbenefits.app.domain.model.BookingChannel
 import com.travelbenefits.app.domain.model.CapPeriod
 import com.travelbenefits.app.domain.model.CapUsage
+import com.travelbenefits.app.domain.model.MerchantOffer
 import com.travelbenefits.app.domain.model.Confidence
 import com.travelbenefits.app.domain.model.PurchaseOption
 import com.travelbenefits.app.domain.model.PurchaseQuery
@@ -32,9 +33,11 @@ class PurchaseRecommender @Inject constructor() {
         cards: List<ResolvedWalletCard>,
         capUsage: List<CapUsage> = emptyList(),
         valuations: Map<RewardCurrency, Double> = emptyMap(),
+        offers: List<MerchantOffer> = emptyList(),
     ): PurchaseRecommendation {
         val category = query.category ?: SpendingCategory.OTHER
         val options = cards.mapNotNull { card -> option(card, query, category, capUsage, valuations) }
+            .map { opt -> applyOffers(opt, query, offers) }
             .sortedWith(compareByDescending<PurchaseOption> { it.netValueUsd }.thenByDescending { it.confidence.ordinal * -1 })
         val warning = when {
             query.category == null -> "Merchant category unknown - showing 'everything else' rates. Pick the category to refine."
@@ -142,9 +145,10 @@ class PurchaseRecommender @Inject constructor() {
             }
         }
 
-        // 3. Rewards and value.
-        val rewards = amountAtHeadline * headline + amountAtFallback * fallback
-        val rewardsValue = rewards * centsPerPoint / 100.0
+        // 3. Rewards and value. Cash-back "multipliers" are percentages, so rewards are dollars; points cards earn points.
+        val rewardUnits = amountAtHeadline * headline + amountAtFallback * fallback
+        val rewards = if (currency.displayAsPercent) rewardUnits / 100.0 else rewardUnits
+        val rewardsValue = rewardUnits * centsPerPoint / 100.0
         val fee: Double? = if (query.isForeign) {
             when (val pct = versioned.foreignTransactionFeePct) {
                 null -> { warnings += "Foreign transaction fee not verified for this card"; confidence = minOf(confidence, Confidence.MEDIUM); null }
@@ -178,6 +182,43 @@ class PurchaseRecommender @Inject constructor() {
             confidence = confidence, conditions = conditions, reasons = reasons, warnings = warnings, thresholdNotes = thresholds,
             amountAtHeadlineRate = amountAtHeadline, isEstimate = true,
         )
+    }
+
+    /**
+     * Stacks enrolled card-linked offers for this merchant on top of the card's
+     * rewards; unenrolled offers and portals become notes. Offer credits are
+     * clawed back on refunds, so the note says so.
+     */
+    private fun applyOffers(option: PurchaseOption, query: PurchaseQuery, offers: List<MerchantOffer>): PurchaseOption {
+        val merchant = query.merchant?.lowercase()?.trim() ?: return option
+        if (merchant.isBlank()) return option
+        val today = query.epochDay
+        val matching = offers.filter { o -> merchant.contains(o.merchant.lowercase()) || o.merchant.lowercase().contains(merchant) }
+            .filter { it.expiresEpochDay == null || it.expiresEpochDay >= today }
+        if (matching.isEmpty()) return option
+        var extra = 0.0
+        val reasons = option.reasons.toMutableList()
+        val conditions = option.conditions.toMutableList()
+        val notes = option.thresholdNotes.toMutableList()
+        matching.forEach { o ->
+            val forThisCard = o.walletCardId == null || o.walletCardId == option.card.walletCard.id
+            val meetsMin = o.minSpendUsd == null || query.amountUsd >= o.minSpendUsd
+            val value = when {
+                o.valueUsd != null -> o.valueUsd
+                o.percentBack != null -> query.amountUsd * o.percentBack / 100.0
+                else -> 0.0
+            }
+            when {
+                o.kind == MerchantOffer.Kind.CARD_OFFER && forThisCard && o.enrolled && meetsMin -> { extra += value; reasons += "Enrolled offer: ${o.description} (+$${"%,.2f".format(value)}; clawed back if refunded)." }
+                o.kind == MerchantOffer.Kind.CARD_OFFER && forThisCard && !o.enrolled -> notes += "Offer available but not enrolled: ${o.description} - enroll first; not counted."
+                o.kind == MerchantOffer.Kind.CARD_OFFER && forThisCard && !meetsMin -> notes += "Offer needs $${"%,.0f".format(o.minSpendUsd ?: 0.0)}+ spend: ${o.description} - not counted."
+                o.kind == MerchantOffer.Kind.PORTAL -> notes += "Portal: ${o.description} - stacks on any card if you start at the portal (not counted; portal payouts can be reversed on returns)."
+                o.kind == MerchantOffer.Kind.COUPON -> notes += "Coupon: ${o.description} - check it combines with card offers."
+                else -> Unit
+            }
+        }
+        if (extra == 0.0 && reasons.size == option.reasons.size) return option.copy(thresholdNotes = notes)
+        return option.copy(rewardsValueUsd = option.rewardsValueUsd + extra, netValueUsd = option.netValueUsd + extra, reasons = reasons, conditions = conditions, thresholdNotes = notes)
     }
 
     private fun rate(m: Double, c: RewardCurrency): String {

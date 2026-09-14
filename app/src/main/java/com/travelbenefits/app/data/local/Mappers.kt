@@ -47,6 +47,7 @@ fun WalletCardEntity.toDomain(): WalletCard = WalletCard(
     bonusSpendToDateUsd = bonusSpendToDateUsd,
     bonusEarnedAt = bonusEarnedAt,
     memberName = memberName,
+    isAuthorizedUser = isAuthorizedUser,
 )
 
 fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(

@@ -20,6 +20,8 @@ import com.travelbenefits.app.data.local.dao.PointsSnapshotDao
 import com.travelbenefits.app.data.local.dao.ProcessedEmailDao
 import com.travelbenefits.app.data.local.dao.TripDao
 import com.travelbenefits.app.data.local.dao.TripDetailDao
+import com.travelbenefits.app.data.local.dao.MerchantOfferDao
+import com.travelbenefits.app.data.local.dao.MemberDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
 import dagger.Module
 import dagger.Provides
@@ -89,4 +91,10 @@ object DatabaseModule {
 
     @Provides
     fun provideTripDetailDao(db: AppDatabase): TripDetailDao = db.tripDetailDao()
+
+    @Provides
+    fun provideMerchantOfferDao(db: AppDatabase): MerchantOfferDao = db.merchantOfferDao()
+
+    @Provides
+    fun provideMemberDao(db: AppDatabase): MemberDao = db.memberDao()
 }

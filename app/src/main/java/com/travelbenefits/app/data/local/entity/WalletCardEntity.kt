@@ -24,4 +24,6 @@ data class WalletCardEntity(
     val bonusSpendToDateUsd: Long? = null,
     val bonusEarnedAt: Long? = null,
     val memberName: String? = null,
+    /** Added in DB v9: true when this card is an authorized-user card on someone else's account. */
+    val isAuthorizedUser: Boolean? = null,
 )

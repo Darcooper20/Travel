@@ -141,6 +141,19 @@ fun TripDetailScreen(onBack: () -> Unit, viewModel: TripDetailViewModel = hiltVi
                         }
                     }
                 }
+                val paidCard = state.cards.firstOrNull { it.walletCard.id == f.paymentCardId } as? ResolvedWalletCard.Catalog
+                val guides = paidCard?.entry?.travelPerks?.mapNotNull { com.travelbenefits.app.domain.ProtectionGuide.guide(it.kind)?.let { g -> it to g } }.orEmpty()
+                if (guides.isNotEmpty()) item {
+                    SectionCard(title = "Protection & claims (paid with ${paidCard!!.displayName})") {
+                        Text("Coverage depends on the benefits guide and on the fare being charged to this card; the card name alone guarantees nothing.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        guides.forEach { (perk, g) ->
+                            Text(perk.kind.label, style = MaterialTheme.typography.labelMedium)
+                            Text(perk.description + (perk.condition?.let { " - $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                            Text("Deadline: ${g.typicalDeadline}", style = MaterialTheme.typography.labelSmall)
+                            Text("Documents: ${g.documents.joinToString("; ")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
             item {
                 SectionCard(title = "History") {
