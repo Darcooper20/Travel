@@ -6,6 +6,7 @@ import com.travelbenefits.app.data.local.dao.RotatingCategoryDao
 import com.travelbenefits.app.data.local.dao.WalletCardDao
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 import com.travelbenefits.app.data.local.toDomain
+import com.travelbenefits.app.data.local.toEntity
 import com.travelbenefits.app.domain.model.CardLookupResult
 import com.travelbenefits.app.domain.model.Quarters
 import com.travelbenefits.app.domain.model.RotatingSelection
