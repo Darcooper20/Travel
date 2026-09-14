@@ -27,6 +27,7 @@ import javax.inject.Inject
 data class AccountCardState(
     val account: LoyaltyAccount,
     val profile: ProgramProfile,
+    val balanceLabel: String?,
     val progress: TierProgress,
     val expiryEstimateAt: Long?,
     val estimatedValueUsd: Double?,
@@ -59,6 +60,7 @@ class LoyaltyViewModel @Inject constructor(
             AccountCardState(
                 account = account,
                 profile = insights.profile(account.program),
+                balanceLabel = insights.balanceLabel(account),
                 progress = insights.tierProgress(account),
                 expiryEstimateAt = insights.expiryEstimate(account),
                 estimatedValueUsd = insights.estimatedValueUsd(account),

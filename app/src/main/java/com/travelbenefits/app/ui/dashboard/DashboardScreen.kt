@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Luggage
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
@@ -162,17 +163,13 @@ private fun PortfolioCard(state: DashboardUiState, onOpenLoyalty: () -> Unit) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Estimated points value", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatUsd(state.portfolioValueUsd), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Hotel, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("${formatPoints(state.hotelPointsTotal)} hotel pts", style = MaterialTheme.typography.bodySmall)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Flight, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("${formatPoints(state.airlineMilesTotal)} miles", style = MaterialTheme.typography.bodySmall)
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TotalChip(Modifier.weight(1f), Icons.Filled.Hotel, "${formatPoints(state.hotelPointsTotal)} pts", "Hotels")
+                TotalChip(Modifier.weight(1f), Icons.Filled.Flight, "${formatPoints(state.airlineMilesTotal)} mi", "Airlines")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TotalChip(Modifier.weight(1f), Icons.Filled.ShoppingBag, "~${formatUsd(state.shopValueUsd)}", "Shops & dining")
+                TotalChip(Modifier.weight(1f), Icons.Filled.CreditCard, "~${formatUsd(state.cardRewardsValueUsd)}", "Card points (${state.cardsWithBalance}/${state.cardCount})")
             }
             if (state.accounts.isEmpty()) {
                 Text("No loyalty accounts yet - sync Gmail or add them by hand.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -185,7 +182,7 @@ private fun PortfolioCard(state: DashboardUiState, onOpenLoyalty: () -> Unit) {
                             summary.account.tier?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(summary.account.balanceLabel ?: "—", style = MaterialTheme.typography.bodyMedium)
+                            Text(summary.balanceLabel ?: "—", style = MaterialTheme.typography.bodyMedium)
                             summary.estimatedValueUsd?.let { Text("~${formatUsd(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     }
@@ -197,6 +194,18 @@ private fun PortfolioCard(state: DashboardUiState, onOpenLoyalty: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun TotalChip(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(6.dp))
+        Column {
+            Text(value, style = MaterialTheme.typography.bodyMedium)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

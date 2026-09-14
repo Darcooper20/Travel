@@ -18,6 +18,9 @@ fun WalletCardEntity.toDomain(): WalletCard = WalletCard(
     customCardName = customCardName,
     dateAdded = dateAdded,
     notes = notes,
+    rewardsBalance = rewardsBalance,
+    rewardsBalanceAsOf = rewardsBalanceAsOf,
+    last4 = last4,
 )
 
 fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(

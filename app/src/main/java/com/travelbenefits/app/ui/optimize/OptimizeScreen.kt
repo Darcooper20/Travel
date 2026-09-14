@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.CashVsPointsResult
 import com.travelbenefits.app.domain.model.LoyaltyProgram
+import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.domain.model.SpendingCategory
 import com.travelbenefits.app.ui.common.CaveatCard
@@ -59,6 +60,9 @@ import com.travelbenefits.app.ui.common.formatPoints
 import com.travelbenefits.app.ui.common.formatUsd
 
 private val tabs = listOf("Earn", "Redeem", "Transfer", "Ask")
+
+/** Programs that card points can actually be earned into or transferred to - shops/dining never qualify. */
+private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries.filter { it.kind != LoyaltyProgramKind.SHOP }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +91,7 @@ fun OptimizeScreen(viewModel: OptimizeViewModel = hiltViewModel()) {
 @Composable
 private fun EarnTab(viewModel: OptimizeViewModel) {
     val state by viewModel.earnState.collectAsState()
-    val programOptions: List<LoyaltyProgram?> = listOf<LoyaltyProgram?>(null) + LoyaltyProgram.entries
+    val programOptions: List<LoyaltyProgram?> = listOf<LoyaltyProgram?>(null) + travelPrograms
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
         item {
@@ -193,7 +197,7 @@ private fun RedeemTab(viewModel: OptimizeViewModel) {
             )
         }
         item {
-            DropdownPicker(label = "Program", options = LoyaltyProgram.entries, selected = state.program, optionLabel = { it.displayName }, onSelected = { p -> viewModel.updateRedeem { it.copy(program = p) } })
+            DropdownPicker(label = "Program", options = LoyaltyProgram.entries, selected = state.program, optionLabel = { "${it.displayName} (${it.kind.label})" }, onSelected = { p -> viewModel.updateRedeem { it.copy(program = p) } })
         }
         item {
             OutlinedTextField(
@@ -284,7 +288,7 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
         item {
-            DropdownPicker(label = "Top up which program?", options = LoyaltyProgram.entries, selected = state.program, optionLabel = { it.displayName }, onSelected = viewModel::selectTransferProgram)
+            DropdownPicker(label = "Top up which program?", options = travelPrograms, selected = state.program, optionLabel = { it.displayName }, onSelected = viewModel::selectTransferProgram)
         }
         item {
             SectionCard(title = state.program.displayName) {
@@ -316,6 +320,13 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                         Text(option.partner.ratioLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                     Text("1,000 ${option.partner.from.displayName} → ${formatPoints(option.programPointsPer1000.toLong())} ${state.program.displayName} points", style = MaterialTheme.typography.bodySmall)
+                    option.walletCard.walletCard.rewardsBalance?.let { held ->
+                        Text(
+                            "You hold ${formatPoints(held)} ${option.partner.from.displayName} → up to ${formatPoints((held * option.partner.ratio).toLong())} ${state.program.displayName} points",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                     Text(
                         if (option.valueUpliftCents >= 0) {
                             String.format("Worth ~%.2f¢ per card point here vs ~%.2f¢ as %s - a good use.", option.partner.ratio * profile.estValueCentsPerPoint, option.partner.from.estValueCentsPerPoint, option.partner.from.displayName)

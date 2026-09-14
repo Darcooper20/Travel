@@ -11,6 +11,11 @@ data class WalletCard(
     val customCardName: String?,
     val dateAdded: Long,
     val notes: String?,
+    /** Current rewards balance in the card's own currency (points, miles, or whole dollars of cash back), from a statement email or typed in. */
+    val rewardsBalance: Long? = null,
+    val rewardsBalanceAsOf: Long? = null,
+    /** Last four digits, when known - used to match statement emails to this card. */
+    val last4: String? = null,
 )
 
 enum class LoyaltyAccountSource { MANUAL, GMAIL_SCAN }
@@ -88,6 +93,18 @@ data class LookupCredit(val label: String, val description: String)
 sealed class ResolvedWalletCard {
     abstract val walletCard: WalletCard
     abstract val displayName: String
+
+    /** The currency this card earns, when known from the catalog. */
+    val rewardCurrency: RewardCurrency?
+        get() = (this as? Catalog)?.entry?.rewardCurrency
+
+    /** Estimated dollar value of the card's current rewards balance, if both balance and currency are known. */
+    val rewardsValueUsd: Double?
+        get() {
+            val balance = walletCard.rewardsBalance ?: return null
+            val currency = rewardCurrency ?: return null
+            return balance * currency.estValueCentsPerPoint / 100.0
+        }
 
     data class Catalog(
         override val walletCard: WalletCard,

@@ -68,5 +68,14 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2)
+    /** v2 -> v3: rewards balance / last-4 on wallet cards (credit-card points tracked like any other balance). */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `rewardsBalance` INTEGER")
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `rewardsBalanceAsOf` INTEGER")
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `last4` TEXT")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

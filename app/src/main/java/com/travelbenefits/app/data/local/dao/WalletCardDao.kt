@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.travelbenefits.app.data.local.entity.WalletCardEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -17,6 +18,12 @@ interface WalletCardDao {
 
     @Insert
     suspend fun insert(card: WalletCardEntity): Long
+
+    @Query("SELECT * FROM wallet_cards WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Long): WalletCardEntity?
+
+    @Update
+    suspend fun update(card: WalletCardEntity)
 
     @Delete
     suspend fun delete(card: WalletCardEntity)

@@ -50,6 +50,7 @@ import com.travelbenefits.app.domain.model.ResolvedWalletCard
 fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
     val cards by viewModel.resolvedCards.collectAsState()
     val addCardState by viewModel.addCardState.collectAsState()
+    val editCardState by viewModel.editCardState.collectAsState()
     var pendingDelete by remember { mutableStateOf<ResolvedWalletCard?>(null) }
 
     Scaffold(
@@ -77,8 +78,15 @@ fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
                     .fillMaxSize()
                     .padding(padding),
             ) {
+                item {
+                    Text(
+                        "Tap a card to set its rewards balance and last four digits; the email monitor updates balances from issuer statement emails it can match.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 items(cards, key = { it.walletCard.id }) { card ->
-                    WalletCardRow(card = card, onDelete = { pendingDelete = card })
+                    WalletCardRow(card = card, onClick = { viewModel.openEditCard(card) }, onDelete = { pendingDelete = card })
                 }
             }
         }
@@ -98,6 +106,15 @@ fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
         )
     }
 
+    if (editCardState.isOpen) {
+        EditCardDialog(
+            state = editCardState,
+            onDismiss = viewModel::closeEditCard,
+            onChange = viewModel::updateEditCard,
+            onSave = viewModel::saveEditCard,
+        )
+    }
+
     if (addCardState.isOpen) {
         val sheetState = rememberModalBottomSheetState()
         ModalBottomSheet(onDismissRequest = viewModel::closeAddCard, sheetState = sheetState) {
@@ -113,8 +130,8 @@ fun WalletScreen(viewModel: WalletViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun WalletCardRow(card: ResolvedWalletCard, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun WalletCardRow(card: ResolvedWalletCard, onClick: () -> Unit, onDelete: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,13 +144,71 @@ private fun WalletCardRow(card: ResolvedWalletCard, onDelete: () -> Unit) {
                     is ResolvedWalletCard.Catalog -> "${card.entry.issuer} • \$${card.entry.annualFeeUsd}/yr"
                     is ResolvedWalletCard.Custom -> card.lookup?.issuer ?: "Looked up card - tap to refresh in Settings"
                 }
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    subtitle + (card.walletCard.last4?.let { " • ••••$it" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val balance = card.walletCard.rewardsBalance
+                if (balance != null) {
+                    Text(
+                        "${String.format("%,d", balance)} ${card.rewardCurrency?.displayName ?: "rewards"}" +
+                            (card.rewardsValueUsd?.let { " (~${String.format("$%,.0f", it)})" } ?: "") +
+                            (card.walletCard.rewardsBalanceAsOf?.let { " • ${com.travelbenefits.app.ui.common.formatRelative(it)}" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text("Balance unknown - tap to enter", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Remove")
             }
         }
     }
+}
+
+@Composable
+private fun EditCardDialog(
+    state: EditCardUiState,
+    onDismiss: () -> Unit,
+    onChange: ((EditCardUiState) -> EditCardUiState) -> Unit,
+    onSave: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(state.displayName) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = state.rewardsBalance,
+                    onValueChange = { v -> onChange { it.copy(rewardsBalance = v) } },
+                    label = { Text("Rewards balance" + (state.currencyName?.let { " ($it)" } ?: "")) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.last4,
+                    onValueChange = { v -> onChange { it.copy(last4 = v) } },
+                    label = { Text("Last 4 digits (to match statement emails)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.nickname,
+                    onValueChange = { v -> onChange { it.copy(nickname = v) } },
+                    label = { Text("Nickname") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.notes,
+                    onValueChange = { v -> onChange { it.copy(notes = v) } },
+                    label = { Text("Notes") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onSave) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

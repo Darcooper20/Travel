@@ -22,6 +22,9 @@ import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.model.LoyaltyProgram
+import com.travelbenefits.app.domain.model.LoyaltyProgramKind
+import com.travelbenefits.app.domain.model.ResolvedWalletCard
+import com.travelbenefits.app.domain.model.RewardCurrency
 import com.travelbenefits.app.domain.model.TripKind
 import com.travelbenefits.app.domain.model.TripSource
 import kotlinx.serialization.Serializable
@@ -42,9 +45,10 @@ data class SyncReport(
     val tierChanges: Int = 0,
     val newTrips: Int = 0,
     val expiryWarnings: Int = 0,
+    val cardBalanceUpdates: Int = 0,
     val highlights: List<String> = emptyList(),
 ) {
-    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings
+    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates
 
     fun summary(): String = when {
         emailsRead == 0 -> "No new travel or loyalty emails since the last sync."
@@ -55,6 +59,7 @@ data class SyncReport(
             tierChanges.takeIf { it > 0 }?.let { "$it status change(s)" },
             newTrips.takeIf { it > 0 }?.let { "$it new trip(s)" },
             expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
+            cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
         ).joinToString(", ") + " from $emailsRead email(s)."
     }
 }
@@ -82,6 +87,7 @@ class EmailMonitorRepository @Inject constructor(
     private val tripDao: TripDao,
     private val activityEventDao: ActivityEventDao,
     private val processedEmailDao: ProcessedEmailDao,
+    private val walletRepository: WalletRepository,
     private val anthropicClient: AnthropicClient,
     private val securePrefs: SecurePrefs,
     private val appPrefs: AppPrefs,
@@ -116,15 +122,11 @@ class EmailMonitorRepository @Inject constructor(
                     (now - TimeUnit.DAYS.toMillis(settings.firstScanLookbackDays.toLong())) / 1000
                 }
 
-                onProgress("Looking for new loyalty and travel emails…")
+                onProgress("Looking for new loyalty, travel, shopping and card emails…")
+                // Insertion order = priority under the per-sync cap: bookings first
+                // (time-sensitive), then hotel/airline statements, then card
+                // statements, then the noisier shop/dining senders.
                 val refs = linkedMapOf<String, LoyaltyProgram?>()
-                if (settings.scanLoyaltyEmails) {
-                    for (program in LoyaltyProgram.entries) {
-                        val query = "(" + program.gmailSenderDomains.joinToString(" OR ") { "from:$it" } + ") after:$afterEpochSeconds"
-                        val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = MESSAGES_PER_PROGRAM) }.getOrNull() ?: continue
-                        list.messages.forEach { ref -> refs.putIfAbsent(ref.id, program) }
-                    }
-                }
                 if (settings.scanTripEmails) {
                     val senders = TRIP_SENDER_DOMAINS.joinToString(" OR ") { "from:$it" }
                     val query = "($senders) $TRIP_SUBJECT_TERMS after:$afterEpochSeconds"
@@ -135,6 +137,35 @@ class EmailMonitorRepository @Inject constructor(
                     runCatching { gmailApi.listMessages(bearer, generic, maxResults = MESSAGES_FOR_TRIPS) }
                         .getOrNull()?.messages?.forEach { ref -> refs.putIfAbsent(ref.id, null) }
                 }
+                val programsToScan = LoyaltyProgram.entries.filter { program ->
+                    when (program.kind) {
+                        LoyaltyProgramKind.HOTEL, LoyaltyProgramKind.AIRLINE -> settings.scanLoyaltyEmails
+                        LoyaltyProgramKind.SHOP -> false
+                    }
+                } + LoyaltyProgram.entries.filter { it.kind == LoyaltyProgramKind.SHOP && settings.scanShopEmails }
+                val cardRefs = mutableListOf<String>()
+                if (settings.scanCardEmails) {
+                    val senders = CARD_ISSUER_DOMAINS.joinToString(" OR ") { "from:$it" }
+                    val query = "($senders) $CARD_SUBJECT_TERMS -category:promotions after:$afterEpochSeconds"
+                    runCatching { gmailApi.listMessages(bearer, query, maxResults = MESSAGES_FOR_CARDS) }
+                        .getOrNull()?.messages?.forEach { ref -> cardRefs += ref.id }
+                }
+                for (program in programsToScan) {
+                    if (program.kind == LoyaltyProgramKind.SHOP && cardRefs.isNotEmpty()) {
+                        // Card statements slot in ahead of the first shop program.
+                        cardRefs.forEach { refs.putIfAbsent(it, null) }
+                        cardRefs.clear()
+                    }
+                    // Shop senders are mostly marketing, so skip Gmail's Promotions bucket for them; hotel/airline
+                    // statements sometimes land there too, so those are read regardless.
+                    val isShop = program.kind == LoyaltyProgramKind.SHOP
+                    val perProgram = if (isShop) MESSAGES_PER_SHOP else MESSAGES_PER_PROGRAM
+                    val exclusions = if (isShop) " -category:promotions" else ""
+                    val query = "(" + program.gmailSenderDomains.joinToString(" OR ") { "from:$it" } + ")$exclusions after:$afterEpochSeconds"
+                    val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = perProgram) }.getOrNull() ?: continue
+                    list.messages.forEach { ref -> refs.putIfAbsent(ref.id, program) }
+                }
+                cardRefs.forEach { refs.putIfAbsent(it, null) }
 
                 val already = if (refs.isEmpty()) emptySet() else processedEmailDao.findExisting(refs.keys.toList()).toSet()
                 val toRead = refs.keys.filterNot { it in already }.take(settings.maxEmailsPerSync)
@@ -217,6 +248,7 @@ class EmailMonitorRepository @Inject constructor(
         val loyalty = mutableListOf<ExtractedLoyalty>()
         val trips = mutableListOf<ExtractedTrip>()
         val alerts = mutableListOf<ExtractedAlert>()
+        val cardRewards = mutableListOf<ExtractedCardRewards>()
         candidates.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
             val offset = batchIndex * BATCH_SIZE
             val payload = batch.mapIndexed { i, c ->
@@ -245,13 +277,15 @@ class EmailMonitorRepository @Inject constructor(
             loyalty += parsed.loyaltyUpdates
             trips += parsed.trips
             alerts += parsed.alerts
+            cardRewards += parsed.cardRewards
         }
-        return merged.copy(loyaltyUpdates = loyalty, trips = trips, alerts = alerts)
+        return merged.copy(loyaltyUpdates = loyalty, trips = trips, alerts = alerts, cardRewards = cardRewards)
     }
 
     // ---- Applying results ------------------------------------------------
 
     private suspend fun apply(extraction: ExtractionResult, candidates: List<EmailCandidate>, now: Long): SyncReport {
+        var cardBalanceUpdates = 0
         var accountsFound = 0
         var balanceChanges = 0
         var tierChanges = 0
@@ -399,8 +433,35 @@ class EmailMonitorRepository @Inject constructor(
             }
         }
 
+        if (extraction.cardRewards.isNotEmpty()) {
+            val wallet = walletRepository.getResolvedCards()
+            val sortedCards = extraction.cardRewards.sortedBy { candidateFor(it.sourceIndex)?.receivedAt ?: 0L }
+            for (item in sortedCards) {
+                val balance = item.balance?.toLong() ?: LoyaltyAccount.parsePoints(item.balanceText) ?: continue
+                val candidate = candidateFor(item.sourceIndex)
+                val at = candidate?.receivedAt ?: now
+                val card = matchCard(item, wallet) ?: continue
+                val previousAsOf = card.walletCard.rewardsBalanceAsOf
+                if (previousAsOf != null && at < previousAsOf) continue
+                val previous = walletRepository.updateRewardsBalance(card.walletCard.id, balance, at, item.last4?.takeLast(4))
+                if (previous != balance) {
+                    cardBalanceUpdates++
+                    val currencyName = card.rewardCurrency?.displayName ?: "rewards"
+                    val label = if (previous == null) {
+                        "${card.displayName}: ${LoyaltyAccount.formatPoints(balance)} $currencyName"
+                    } else {
+                        val delta = balance - previous
+                        "${card.displayName}: ${LoyaltyAccount.formatPoints(balance)} $currencyName (${if (delta >= 0) "+" else "-"}${LoyaltyAccount.formatPoints(kotlin.math.abs(delta))})"
+                    }
+                    highlights += label
+                    event(ActivityKind.BALANCE_CHANGED, null, label, candidate?.subject, at)
+                }
+            }
+        }
+
         return SyncReport(
             emailsRead = candidates.size,
+            cardBalanceUpdates = cardBalanceUpdates,
             accountsFound = accountsFound,
             balanceChanges = balanceChanges,
             tierChanges = tierChanges,
@@ -408,6 +469,36 @@ class EmailMonitorRepository @Inject constructor(
             expiryWarnings = expiryWarnings,
             highlights = highlights,
         )
+    }
+
+    /**
+     * Pairs a statement's card description with a wallet card: last-4 wins
+     * outright; otherwise issuer + name words; otherwise the currency, if the
+     * wallet holds exactly one card earning it (e.g. one Amex MR card).
+     */
+    private fun matchCard(item: ExtractedCardRewards, wallet: List<ResolvedWalletCard>): ResolvedWalletCard? {
+        val last4 = item.last4?.filter { it.isDigit() }?.takeLast(4)?.takeIf { it.length == 4 }
+        if (last4 != null) wallet.firstOrNull { it.walletCard.last4 == last4 }?.let { return it }
+
+        val text = listOfNotNull(item.issuer, item.cardName).joinToString(" ").lowercase()
+        val byName = wallet.filter { card ->
+            val entry = (card as? ResolvedWalletCard.Catalog)?.entry
+            val names = listOfNotNull(card.displayName, entry?.displayName, card.walletCard.customCardName, card.walletCard.nickname).map { it.lowercase() }
+            val issuerOk = entry == null || text.contains(entry.issuer.lowercase().substringBefore(" "))
+            issuerOk && names.any { name ->
+                val words = name.split(' ', '-', '®').filter { it.length > 3 && it !in GENERIC_CARD_WORDS }
+                words.isNotEmpty() && words.all { text.contains(it) }
+            }
+        }
+        if (byName.size == 1) return byName.first()
+        if (byName.size > 1 && last4 == null) return byName.firstOrNull { it.walletCard.last4 == null } ?: byName.first()
+
+        val currency = item.currency?.let { c -> RewardCurrency.entries.firstOrNull { it.name.equals(c.trim(), ignoreCase = true) } }
+        if (currency != null) {
+            val byCurrency = wallet.filter { it.rewardCurrency == currency }
+            if (byCurrency.size == 1) return byCurrency.first()
+        }
+        return null
     }
 
     private suspend fun event(kind: ActivityKind, program: LoyaltyProgram?, title: String, detail: String?, at: Long) {
@@ -448,7 +539,19 @@ class EmailMonitorRepository @Inject constructor(
 
     companion object {
         private const val MESSAGES_PER_PROGRAM = 10
+        private const val MESSAGES_PER_SHOP = 4
         private const val MESSAGES_FOR_TRIPS = 25
+        private const val MESSAGES_FOR_CARDS = 20
+
+        private val GENERIC_CARD_WORDS = setOf("card", "credit", "visa", "mastercard", "american", "express", "rewards", "preferred", "world", "elite", "signature", "infinite", "cash", "back", "from", "with", "bank")
+
+        /** Card issuer transactional domains, for "your statement is ready" / rewards summary emails. */
+        private val CARD_ISSUER_DOMAINS = listOf(
+            "chase.com", "americanexpress.com", "aexp.com", "capitalone.com", "citi.com", "citibank.com", "wellsfargo.com",
+            "bankofamerica.com", "discover.com", "usbank.com", "barclaycardus.com", "barclays.com", "bilt.com", "biltrewards.com", "synchrony.com",
+        )
+        private const val CARD_SUBJECT_TERMS =
+            "subject:(statement OR \"rewards summary\" OR \"points balance\" OR \"miles balance\" OR \"your rewards\" OR \"cash back\" OR \"Ultimate Rewards\" OR \"Membership Rewards\" OR \"ThankYou\")"
         private const val BATCH_SIZE = 6
         private const val BODY_CHARS = 3500
 
@@ -466,6 +569,7 @@ class EmailMonitorRepository @Inject constructor(
         private val EXTRACTION_SYSTEM_PROMPT: String
             get() {
                 val programNames = LoyaltyProgram.entries.joinToString(", ") { "\"${it.name}\"" }
+                val currencyNames = RewardCurrency.entries.joinToString(", ") { "\"${it.name}\"" }
                 return """
                     You extract structured travel-loyalty data from emails. You will be
                     given several emails, each labelled "Email N" with the received date,
@@ -513,15 +617,33 @@ class EmailMonitorRepository @Inject constructor(
                           "date": "YYYY-MM-DD" or null,
                           "message": one short sentence
                         }
+                      ],
+                      "cardRewards": [
+                        {
+                          "sourceIndex": N,
+                          "issuer": string (e.g. "Chase", "American Express", "Capital One", "Citi"),
+                          "cardName": string or null (product name as written, e.g. "Sapphire Preferred", "Platinum Card"),
+                          "last4": string or null (last four digits of the card if shown),
+                          "currency": one of $currencyNames or null,
+                          "balance": number or null (the current rewards balance: points, miles, or whole dollars of cash back),
+                          "balanceText": string or null (as written, e.g. "84,210 points" or "$123.45 cash back")
+                        }
                       ]
                     }
+                    Program notes: the list includes shops, dining, grocery, rideshare and
+                    cash-back programs. For those, "pointsBalance"/"pointsNumeric" may be
+                    stars, points or fuel points; for dollar-denominated balances (gift
+                    card, Walmart Cash, Uber Cash, ExtraBucks, Rakuten cash back, DoorDash
+                    credits) put the whole-dollar amount in pointsNumeric and the text in
+                    pointsBalance. Credit-card statement or rewards-summary emails go in
+                    cardRewards, not loyaltyUpdates.
                     Rules: include an email in loyaltyUpdates only if it shows account-specific
                     details (a member number, tier/status, or a points/miles balance). Include a
                     trip only for an actual booking/confirmation/itinerary/change - not marketing,
                     price alerts, or searches; cancelled bookings should be skipped. Never invent
                     numbers or dates that aren't in the text; use null. A single email can
                     contribute to more than one list. If nothing qualifies, return
-                    {"loyaltyUpdates":[],"trips":[],"alerts":[]}.
+                    {"loyaltyUpdates":[],"trips":[],"alerts":[],"cardRewards":[]}.
                 """.trimIndent()
             }
     }
@@ -532,6 +654,18 @@ private data class ExtractionResult(
     val loyaltyUpdates: List<ExtractedLoyalty> = emptyList(),
     val trips: List<ExtractedTrip> = emptyList(),
     val alerts: List<ExtractedAlert> = emptyList(),
+    val cardRewards: List<ExtractedCardRewards> = emptyList(),
+)
+
+@Serializable
+private data class ExtractedCardRewards(
+    val sourceIndex: Int? = null,
+    val issuer: String? = null,
+    val cardName: String? = null,
+    val last4: String? = null,
+    val currency: String? = null,
+    val balance: Double? = null,
+    val balanceText: String? = null,
 )
 
 @Serializable

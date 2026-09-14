@@ -29,6 +29,7 @@ import javax.inject.Inject
 
 data class ProgramSummary(
     val account: LoyaltyAccount,
+    val balanceLabel: String?,
     val estimatedValueUsd: Double?,
 )
 
@@ -37,6 +38,9 @@ data class DashboardUiState(
     val portfolioValueUsd: Double = 0.0,
     val hotelPointsTotal: Long = 0,
     val airlineMilesTotal: Long = 0,
+    val shopValueUsd: Double = 0.0,
+    val cardRewardsValueUsd: Double = 0.0,
+    val cardsWithBalance: Int = 0,
     val cardCount: Int = 0,
     val upcomingTrips: List<Trip> = emptyList(),
     val alerts: List<Alert> = emptyList(),
@@ -75,17 +79,21 @@ class DashboardViewModel @Inject constructor(
     private val core = combine(
         loyaltyRepository.observeAccounts(),
         tripRepository.observeTrips(),
-        walletRepository.observeWalletCards(),
+        walletRepository.observeResolvedCards(),
         activityRepository.observeRecent(40),
         activityRepository.observeUnreadCount(),
     ) { accounts, trips, cards, activity, unread ->
         val today = LocalDate.now().toEpochDay()
+        val cardValue = insights.cardRewardsValueUsd(cards)
         DashboardUiState(
-            accounts = accounts.map { ProgramSummary(it, insights.estimatedValueUsd(it)) }
+            accounts = accounts.map { ProgramSummary(it, insights.balanceLabel(it), insights.estimatedValueUsd(it)) }
                 .sortedByDescending { it.estimatedValueUsd ?: -1.0 },
-            portfolioValueUsd = insights.portfolioValueUsd(accounts),
+            portfolioValueUsd = insights.portfolioValueUsd(accounts) + cardValue,
             hotelPointsTotal = accounts.filter { it.program.kind == LoyaltyProgramKind.HOTEL }.sumOf { it.pointsNumeric ?: 0L },
             airlineMilesTotal = accounts.filter { it.program.kind == LoyaltyProgramKind.AIRLINE }.sumOf { it.pointsNumeric ?: 0L },
+            shopValueUsd = accounts.filter { it.program.kind == LoyaltyProgramKind.SHOP }.sumOf { insights.estimatedValueUsd(it) ?: 0.0 },
+            cardRewardsValueUsd = cardValue,
+            cardsWithBalance = cards.count { it.walletCard.rewardsBalance != null },
             cardCount = cards.size,
             upcomingTrips = trips.filter { it.isUpcoming(today) }.sortedBy { it.startEpochDay ?: Long.MAX_VALUE }.take(5),
             alerts = insights.alerts(accounts, trips),

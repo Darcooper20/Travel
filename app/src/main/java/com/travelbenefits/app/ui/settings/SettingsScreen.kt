@@ -93,7 +93,7 @@ fun SettingsScreen(
             item {
                 SectionCard(title = "Email monitor") {
                     Text(
-                        "Reads new mail from hotel, airline and booking senders (read-only), extracts balances, status, trips and expiry warnings, and keeps the wallet current.",
+                        "Reads new mail from hotel, airline, shop, card-issuer and booking senders (read-only), extracts balances, status, trips and expiry warnings, and keeps the wallet current.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     ToggleRow(
@@ -123,6 +123,8 @@ fun SettingsScreen(
                     )
                     ToggleRow(label = "Scan loyalty program emails", checked = sync.scanLoyaltyEmails, onChange = { on -> viewModel.updateSync { it.copy(scanLoyaltyEmails = on) } })
                     ToggleRow(label = "Scan booking confirmations", checked = sync.scanTripEmails, onChange = { on -> viewModel.updateSync { it.copy(scanTripEmails = on) } })
+                    ToggleRow(label = "Scan shop & dining rewards emails", checked = sync.scanShopEmails, onChange = { on -> viewModel.updateSync { it.copy(scanShopEmails = on) } })
+                    ToggleRow(label = "Scan credit card statements for rewards balances", checked = sync.scanCardEmails, onChange = { on -> viewModel.updateSync { it.copy(scanCardEmails = on) } })
                     DropdownPicker(
                         label = "First scan looks back",
                         options = listOf(90, 180, 365, 730),

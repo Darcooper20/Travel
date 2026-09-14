@@ -2,6 +2,8 @@ package com.travelbenefits.app.domain
 
 import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
 import com.travelbenefits.app.domain.model.Alert
+import com.travelbenefits.app.domain.model.BalanceUnit
+import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.ProgramProfile
@@ -53,10 +55,25 @@ class LoyaltyInsights @Inject constructor() {
 
     fun estimatedValueUsd(account: LoyaltyAccount): Double? {
         val points = account.pointsNumeric ?: return null
-        return points * LoyaltyProgramCatalog.profileFor(account.program).estValueCentsPerPoint / 100.0
+        return LoyaltyProgramCatalog.profileFor(account.program).estimatedValueUsd(points)
+    }
+
+    /** Balance for display, unit-aware ("42,500" vs "$42"), falling back to the raw text from the email. */
+    fun balanceLabel(account: LoyaltyAccount): String? {
+        val numeric = account.pointsNumeric ?: return account.pointsBalance
+        val profile = LoyaltyProgramCatalog.profileFor(account.program)
+        return if (profile.balanceUnit == BalanceUnit.DOLLARS && !account.pointsBalance.isNullOrBlank() && account.pointsBalance.contains('.')) {
+            // Keep the cents from the source text ("$42.57") rather than the whole-dollar number.
+            account.pointsBalance
+        } else {
+            profile.formatBalance(numeric)
+        }
     }
 
     fun portfolioValueUsd(accounts: List<LoyaltyAccount>): Double = accounts.sumOf { estimatedValueUsd(it) ?: 0.0 }
+
+    /** Estimated value of the rewards balances sitting on credit cards. */
+    fun cardRewardsValueUsd(cards: List<ResolvedWalletCard>): Double = cards.sumOf { it.rewardsValueUsd ?: 0.0 }
 
     /** Roughly how many typical award nights the balance covers, using the program's [ProgramProfile.awardBand]. */
     fun awardNightsEstimate(account: LoyaltyAccount): Int? {

@@ -34,6 +34,9 @@ data class ExpirationPolicy(
     val summary: String,
 )
 
+/** Whether a program's balance is a count of points/stars/miles or a dollar amount (gift card, cash back, rewards dollars). */
+enum class BalanceUnit { POINTS, DOLLARS }
+
 /** A hotel award-night price band, for the "what can I book with these points" estimate. Rough, not a live chart. */
 data class AwardPriceBand(
     val lowNightPoints: Int,
@@ -69,7 +72,17 @@ data class ProgramProfile(
     val brandKeywords: List<String>,
     val dataAsOf: String,
     val notes: String? = null,
+    val balanceUnit: BalanceUnit = BalanceUnit.POINTS,
 ) {
+    /** "42,500" for points programs, "$42" for dollar balances. */
+    fun formatBalance(amount: Long): String = when (balanceUnit) {
+        BalanceUnit.POINTS -> String.format("%,d", amount)
+        BalanceUnit.DOLLARS -> String.format("$%,d", amount)
+    }
+
+    /** Dollar value of [amount] using the estimate (for dollar balances this is the amount itself). */
+    fun estimatedValueUsd(amount: Long): Double = amount * estValueCentsPerPoint / 100.0
+
     /** Matches tier names loosely ("Platinum Elite" ~ "Platinum", "Medallion Gold" ~ "Gold"). */
     fun findTier(tierName: String?): TierLevel? {
         if (tierName.isNullOrBlank()) return null

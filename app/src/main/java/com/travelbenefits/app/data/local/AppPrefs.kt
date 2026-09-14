@@ -19,6 +19,10 @@ data class SyncSettings(
     val firstScanLookbackDays: Int = 365,
     val scanLoyaltyEmails: Boolean = true,
     val scanTripEmails: Boolean = true,
+    /** Retail/dining/shopping rewards senders - noisier inboxes, so separately switchable. */
+    val scanShopEmails: Boolean = true,
+    /** Credit-card issuer statement emails, for rewards balances on wallet cards. */
+    val scanCardEmails: Boolean = true,
     /** Anthropic API spend guard: at most this many emails are read per sync. */
     val maxEmailsPerSync: Int = 60,
 )
@@ -51,6 +55,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             .putInt(KEY_LOOKBACK_DAYS, next.firstScanLookbackDays)
             .putBoolean(KEY_SCAN_LOYALTY, next.scanLoyaltyEmails)
             .putBoolean(KEY_SCAN_TRIPS, next.scanTripEmails)
+            .putBoolean(KEY_SCAN_SHOPS, next.scanShopEmails)
+            .putBoolean(KEY_SCAN_CARDS, next.scanCardEmails)
             .putInt(KEY_MAX_EMAILS, next.maxEmailsPerSync)
             .apply()
         _syncSettings.value = next
@@ -78,6 +84,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             firstScanLookbackDays = prefs.getInt(KEY_LOOKBACK_DAYS, defaults.firstScanLookbackDays),
             scanLoyaltyEmails = prefs.getBoolean(KEY_SCAN_LOYALTY, defaults.scanLoyaltyEmails),
             scanTripEmails = prefs.getBoolean(KEY_SCAN_TRIPS, defaults.scanTripEmails),
+            scanShopEmails = prefs.getBoolean(KEY_SCAN_SHOPS, defaults.scanShopEmails),
+            scanCardEmails = prefs.getBoolean(KEY_SCAN_CARDS, defaults.scanCardEmails),
             maxEmailsPerSync = prefs.getInt(KEY_MAX_EMAILS, defaults.maxEmailsPerSync),
         )
     }
@@ -89,6 +97,8 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_LOOKBACK_DAYS = "first_scan_lookback_days"
         const val KEY_SCAN_LOYALTY = "scan_loyalty_emails"
         const val KEY_SCAN_TRIPS = "scan_trip_emails"
+        const val KEY_SCAN_SHOPS = "scan_shop_emails"
+        const val KEY_SCAN_CARDS = "scan_card_emails"
         const val KEY_MAX_EMAILS = "max_emails_per_sync"
         const val KEY_LAST_SYNC_AT = "last_sync_at"
         const val KEY_LAST_SYNC_SUMMARY = "last_sync_summary"

@@ -13,4 +13,8 @@ data class WalletCardEntity(
     val customCardName: String?,
     val dateAdded: Long,
     val notes: String?,
+    /** Added in DB v3 - all nullable so the ALTER TABLE migration stays trivial. */
+    val rewardsBalance: Long? = null,
+    val rewardsBalanceAsOf: Long? = null,
+    val last4: String? = null,
 )

@@ -16,6 +16,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class EditCardUiState(
+    val isOpen: Boolean = false,
+    val cardId: Long = 0,
+    val displayName: String = "",
+    val currencyName: String? = null,
+    val nickname: String = "",
+    val last4: String = "",
+    val rewardsBalance: String = "",
+    val notes: String = "",
+)
+
 data class AddCardUiState(
     val isOpen: Boolean = false,
     val query: String = "",
@@ -37,6 +48,45 @@ class WalletViewModel @Inject constructor(
 
     private val _addCardState = MutableStateFlow(AddCardUiState())
     val addCardState: StateFlow<AddCardUiState> = _addCardState.asStateFlow()
+
+    private val _editCardState = MutableStateFlow(EditCardUiState())
+    val editCardState: StateFlow<EditCardUiState> = _editCardState.asStateFlow()
+
+    fun openEditCard(card: ResolvedWalletCard) {
+        _editCardState.value = EditCardUiState(
+            isOpen = true,
+            cardId = card.walletCard.id,
+            displayName = card.displayName,
+            currencyName = card.rewardCurrency?.displayName,
+            nickname = card.walletCard.nickname.orEmpty(),
+            last4 = card.walletCard.last4.orEmpty(),
+            rewardsBalance = card.walletCard.rewardsBalance?.toString().orEmpty(),
+            notes = card.walletCard.notes.orEmpty(),
+        )
+    }
+
+    fun closeEditCard() {
+        _editCardState.value = EditCardUiState(isOpen = false)
+    }
+
+    fun updateEditCard(transform: (EditCardUiState) -> EditCardUiState) {
+        _editCardState.value = transform(_editCardState.value)
+    }
+
+    fun saveEditCard() {
+        val s = _editCardState.value
+        viewModelScope.launch {
+            walletRepository.updateCardDetails(
+                id = s.cardId,
+                nickname = s.nickname.trim().ifBlank { null },
+                last4 = s.last4.filter { it.isDigit() }.takeLast(4).ifBlank { null },
+                notes = s.notes.trim().ifBlank { null },
+            )
+            val balance = s.rewardsBalance.trim().replace(",", "").replace("$", "").toDoubleOrNull()?.toLong()
+            walletRepository.updateRewardsBalance(s.cardId, balance, System.currentTimeMillis())
+            closeEditCard()
+        }
+    }
 
     fun openAddCard() {
         _addCardState.value = AddCardUiState(isOpen = true, catalogResults = cardLookupRepository.searchCatalog(""))

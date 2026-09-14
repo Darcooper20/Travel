@@ -94,15 +94,12 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
                     )
                 }
             }
-            val hotels = accounts.filter { it.account.program.kind == LoyaltyProgramKind.HOTEL }
-            val airlines = accounts.filter { it.account.program.kind == LoyaltyProgramKind.AIRLINE }
-            if (hotels.isNotEmpty()) {
-                item { Text("Hotels", style = MaterialTheme.typography.titleMedium) }
-                items(hotels, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
-            }
-            if (airlines.isNotEmpty()) {
-                item { Text("Airlines", style = MaterialTheme.typography.titleMedium) }
-                items(airlines, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
+            LoyaltyProgramKind.entries.forEach { kind ->
+                val group = accounts.filter { it.account.program.kind == kind }
+                if (group.isNotEmpty()) {
+                    item { Text(kind.label, style = MaterialTheme.typography.titleMedium) }
+                    items(group, key = { it.account.id }) { AccountCard(it, onEdit = { viewModel.openAdd(it.account) }, onDelete = { pendingDelete = it.account }) }
+                }
             }
             item {
                 Text(
@@ -158,7 +155,7 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(account.balanceLabel ?: "—", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(state.balanceLabel ?: "—", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     state.estimatedValueUsd?.let {
                         Text("~${formatUsd(it)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -227,7 +224,7 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
                         Text(band.note, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                LabelValue("Est. value per point", "${profile.estValueCentsPerPoint}¢")
+                if (profile.balanceUnit == com.travelbenefits.app.domain.model.BalanceUnit.POINTS) LabelValue("Est. value per point", "${profile.estValueCentsPerPoint}¢")
                 profile.basePointsPerDollar?.let { LabelValue("Base earn", "${it}x per $ with ${account.program.displayName}") }
                 LabelValue("Expiry rule", profile.expiration.summary)
                 if (profile.tiers.isNotEmpty()) {
@@ -278,7 +275,7 @@ private fun EditAccountDialog(
                     label = "Program",
                     options = LoyaltyProgram.entries,
                     selected = state.program,
-                    optionLabel = { it.displayName },
+                    optionLabel = { "${it.displayName} (${it.kind.label})" },
                     onSelected = { program -> onChange { it.copy(program = program) } },
                 )
                 OutlinedTextField(
@@ -296,7 +293,7 @@ private fun EditAccountDialog(
                 OutlinedTextField(
                     value = state.pointsBalance,
                     onValueChange = { v -> onChange { it.copy(pointsBalance = v) } },
-                    label = { Text("Points balance") },
+                    label = { Text(if (com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog.profileFor(state.program).balanceUnit == com.travelbenefits.app.domain.model.BalanceUnit.DOLLARS) "Balance (USD)" else "Points balance") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(

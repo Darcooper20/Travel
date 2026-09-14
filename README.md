@@ -7,13 +7,22 @@ Gmail - with tools to squeeze the most out of your points.
 
 ## What it does
 
-- **Loyalty wallet** - every program's membership number, status, points
-  balance, estimated dollar value, progress to the next elite tier, and when
-  the points will expire if you go inactive. Balance history per program.
+- **Loyalty wallet** - hotels, airlines, and shops & dining (Amazon gift-card
+  balance, Starbucks, Target Circle, Walmart Cash, Costco, Uber Cash,
+  DoorDash, Sephora, Ulta, CVS, Walgreens, Kroger fuel points, Best Buy,
+  Chipotle, Dunkin', Panera, Rakuten): membership number, status, balance
+  (points or dollars), estimated value, progress to the next tier, and when
+  points expire if you go inactive. Balance history per program.
+- **Credit cards** - the cards you carry *and* the rewards balance sitting on
+  each (Ultimate Rewards, Membership Rewards, miles, cash back), pulled from
+  issuer statement emails or typed in, valued alongside everything else and
+  fed into the transfer-partner maths.
 - **Email monitor** - reads Gmail (read-only) incrementally, in the
   background on a schedule you choose (WorkManager) or on demand, and uses
-  Claude to turn loyalty statements, booking confirmations and "your points
-  are expiring" notices into structured records. New memberships, balance
+  Claude to turn loyalty statements, shop/dining rewards emails, card
+  statements, booking confirmations and "your points are expiring" notices
+  into structured records. Each source (hotels/airlines, shops, cards,
+  bookings) can be switched off separately. New memberships, balance
   and status changes, new trips and expiry warnings land in an activity feed
   and, optionally, a notification.
 - **Trips** - flights, hotels, cars and rail pulled from confirmation emails
@@ -102,7 +111,7 @@ every push, so it always has the newest build.
   search and the app deep-links to each program's own award search to
   confirm.
 - **Upgrading from the previous version** migrates the local database
-  (v1 -> v2) in place; if anything looks off, clearing the app's storage
+  (v1 -> v3) in place; if anything looks off, clearing the app's storage
   and re-syncing rebuilds it from Gmail.
 
 ## Architecture

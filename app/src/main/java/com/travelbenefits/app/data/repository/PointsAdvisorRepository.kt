@@ -48,8 +48,9 @@ class PointsAdvisorRepository @Inject constructor(
         if (accounts.isEmpty()) append("- No loyalty balances recorded yet.\n")
         accounts.forEach { a ->
             val profile = LoyaltyProgramCatalog.profileFor(a.program)
-            append("- ${a.program.displayName}: ")
-            append(a.balanceLabel ?: "balance unknown")
+            append("- ${a.program.displayName} (${a.program.kind.label.lowercase()}): ")
+            val numeric = a.pointsNumeric
+            append(if (numeric != null) profile.formatBalance(numeric) else a.pointsBalance ?: "balance unknown")
             a.tier?.let { append(", status $it") }
             append(" (app's estimate ~${profile.estValueCentsPerPoint}¢/pt)\n")
         }
@@ -57,6 +58,7 @@ class PointsAdvisorRepository @Inject constructor(
         cards.forEach { c ->
             val currency: RewardCurrency? = (c as? ResolvedWalletCard.Catalog)?.entry?.rewardCurrency
             append("- Card: ${c.displayName}")
+            c.walletCard.rewardsBalance?.let { append(", balance ${String.format("%,d", it)} ${currency?.displayName ?: "rewards"}") }
             currency?.let { cur ->
                 append(" (earns ${cur.displayName}")
                 val partners = TransferPartnerCatalog.partnersFrom(cur)

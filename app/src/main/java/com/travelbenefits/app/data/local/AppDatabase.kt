@@ -28,7 +28,7 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
         ActivityEventEntity::class,
         ProcessedEmailEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

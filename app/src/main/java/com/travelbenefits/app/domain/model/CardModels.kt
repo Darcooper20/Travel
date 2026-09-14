@@ -71,7 +71,12 @@ data class CardCredit(
     val description: String,
 )
 
-enum class LoyaltyProgramKind { HOTEL, AIRLINE }
+enum class LoyaltyProgramKind(val label: String) {
+    HOTEL("Hotels"),
+    AIRLINE("Airlines"),
+    /** Retail, dining, grocery, rideshare and shopping-portal rewards - points, stars, cash-back and gift-card balances. */
+    SHOP("Shops & dining"),
+}
 
 /**
  * Every hotel and airline loyalty program this app knows about - used for
@@ -104,6 +109,24 @@ enum class LoyaltyProgram(
     AMERICAN_AADVANTAGE("American Airlines AAdvantage", LoyaltyProgramKind.AIRLINE, listOf("aa.com", "email.aa.com")),
     ATMOS_REWARDS_AIRLINE("Atmos Rewards (Alaska/Hawaiian)", LoyaltyProgramKind.AIRLINE, listOf("alaskaair.com", "atmosrewards.com", "hawaiianairlines.com")),
     JETBLUE_TRUEBLUE("JetBlue TrueBlue", LoyaltyProgramKind.AIRLINE, listOf("jetblue.com")),
+    // Shops, dining and shopping rewards. Sender domains are the transactional/account domains, not ad networks.
+    AMAZON("Amazon (gift card & rewards balance)", LoyaltyProgramKind.SHOP, listOf("amazon.com")),
+    STARBUCKS_REWARDS("Starbucks Rewards", LoyaltyProgramKind.SHOP, listOf("starbucks.com", "e.starbucks.com")),
+    TARGET_CIRCLE("Target Circle", LoyaltyProgramKind.SHOP, listOf("target.com", "e.target.com")),
+    WALMART_REWARDS("Walmart Rewards / Walmart Cash", LoyaltyProgramKind.SHOP, listOf("walmart.com", "email.walmart.com")),
+    COSTCO_REWARDS("Costco Executive / Citi Costco rewards", LoyaltyProgramKind.SHOP, listOf("costco.com", "online.costco.com")),
+    UBER_REWARDS("Uber Cash / Uber One", LoyaltyProgramKind.SHOP, listOf("uber.com")),
+    DOORDASH("DoorDash credits & DashPass", LoyaltyProgramKind.SHOP, listOf("doordash.com")),
+    SEPHORA_BEAUTY_INSIDER("Sephora Beauty Insider", LoyaltyProgramKind.SHOP, listOf("sephora.com")),
+    ULTA_ULTAMATE("Ulta Ultamate Rewards", LoyaltyProgramKind.SHOP, listOf("ulta.com", "e.ulta.com")),
+    CVS_EXTRACARE("CVS ExtraCare", LoyaltyProgramKind.SHOP, listOf("cvs.com")),
+    WALGREENS_MYWALGREENS("myWalgreens", LoyaltyProgramKind.SHOP, listOf("walgreens.com")),
+    KROGER_PLUS("Kroger Plus / fuel points", LoyaltyProgramKind.SHOP, listOf("kroger.com", "ralphs.com", "fredmeyer.com", "kingsoopers.com", "frysfood.com", "smithsfoodanddrug.com")),
+    BEST_BUY("My Best Buy", LoyaltyProgramKind.SHOP, listOf("bestbuy.com", "emailinfo.bestbuy.com")),
+    CHIPOTLE_REWARDS("Chipotle Rewards", LoyaltyProgramKind.SHOP, listOf("chipotle.com")),
+    DUNKIN_REWARDS("Dunkin' Rewards", LoyaltyProgramKind.SHOP, listOf("dunkindonuts.com", "dunkin.com")),
+    PANERA_MYPANERA("MyPanera", LoyaltyProgramKind.SHOP, listOf("panerabread.com")),
+    RAKUTEN("Rakuten cash back", LoyaltyProgramKind.SHOP, listOf("rakuten.com", "mail.rakuten.com")),
 }
 
 data class LoyaltyBenefit(

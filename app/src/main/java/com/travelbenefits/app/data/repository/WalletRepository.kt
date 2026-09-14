@@ -65,6 +65,27 @@ class WalletRepository @Inject constructor(
 
     suspend fun removeCard(id: Long) = walletCardDao.deleteById(id)
 
+    /** All wallet cards resolved once (for matching statement emails and building advisor context outside a Flow). */
+    suspend fun getResolvedCards(): List<ResolvedWalletCard> = walletCardDao.getAll().map { resolve(it) }
+
+    /** Records a rewards balance on a card. Returns the previous balance so callers can report the change. */
+    suspend fun updateRewardsBalance(id: Long, balance: Long?, asOf: Long, last4: String? = null): Long? {
+        val existing = walletCardDao.findById(id) ?: return null
+        walletCardDao.update(
+            existing.copy(
+                rewardsBalance = balance,
+                rewardsBalanceAsOf = if (balance != null) asOf else existing.rewardsBalanceAsOf,
+                last4 = last4 ?: existing.last4,
+            ),
+        )
+        return existing.rewardsBalance
+    }
+
+    suspend fun updateCardDetails(id: Long, nickname: String?, last4: String?, notes: String?) {
+        val existing = walletCardDao.findById(id) ?: return
+        walletCardDao.update(existing.copy(nickname = nickname, last4 = last4, notes = notes))
+    }
+
     companion object {
         fun normalizeCardName(name: String): String = name.trim().lowercase()
     }
