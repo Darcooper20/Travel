@@ -62,13 +62,10 @@ class AppSmokeTest {
         waitForText(OnboardingText.TITLE_3)
         compose.onNodeWithText(OnboardingText.BUTTON_FINISH).performScrollTo().performClick()
 
-        // Default choice is manual entry, which opens the Cards tab; then walk every tab.
-        waitForTab("Cards")
-        listOf("Home", "Loyalty", "Trips", "Maximize", "Cards", "Home").forEach { tab ->
-            compose.onAllNodes(hasText(tab) and isSelectable()).onFirst().performClick()
-            compose.waitForIdle()
-            waitFor("tab '$tab' to become selected") { compose.onAllNodes(hasText(tab) and isSelected()).fetchSemanticsNodes().isNotEmpty() }
-        }
+        // Default choice is manual entry, which opens the Cards tab (a deferred navigation, so wait
+        // for the tab to be *selected*, not merely present); then walk every tab.
+        waitForTabSelected("Cards")
+        walkTabs("Home", "Loyalty", "Trips", "Maximize", "Cards", "Home")
         waitForText("Data sources")
         compose.onNodeWithText("Data sources").assertIsDisplayed()
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Set up connections in Settings (optional)"))
@@ -81,11 +78,21 @@ class AppSmokeTest {
         waitForText(OnboardingText.TITLE_1)
         compose.onNodeWithText(OnboardingText.BUTTON_SKIP).performScrollTo().performClick()
         waitForText("Data sources")
+        waitForTabSelected("Home")
+        walkTabs("Loyalty", "Home")
+    }
+
+    private fun walkTabs(vararg tabs: String) {
+        tabs.forEach { tab ->
+            compose.onAllNodes(hasText(tab) and isSelectable()).onFirst().performClick()
+            compose.waitForIdle()
+            waitForTabSelected(tab)
+        }
     }
 
     private fun waitForText(text: String) = waitFor("text '$text'") { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
 
-    private fun waitForTab(label: String) = waitFor("tab '$label'") { compose.onAllNodes(hasText(label) and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitForTabSelected(label: String) = waitFor("tab '$label' to be selected") { compose.onAllNodes(hasText(label) and isSelected()).fetchSemanticsNodes().isNotEmpty() }
 
     /** waitUntil with the semantics tree in the failure message, so a CI log says what was on screen. */
     private fun waitFor(what: String, condition: () -> Boolean) {
