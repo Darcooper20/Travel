@@ -42,6 +42,8 @@ class AppSmokeTest {
 
     @Before
     fun resetOnboarding() {
+        // The app process (and its AppPrefs singleton) survives between tests; AppPrefs listens for
+        // this change, so clearing the file resets the onboarding flag regardless of test order.
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }

@@ -64,6 +64,22 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         _onboardingDone.value = done
     }
 
+    // Keeps the flow honest when the file changes behind this singleton's back
+    // (a cleared/restored prefs file, or an instrumented test resetting state).
+    // Held in a field because SharedPreferences only keeps a weak reference.
+    private val externalChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+        if (key == null || key == KEY_ONBOARDED) _onboardingDone.value = p.getBoolean(KEY_ONBOARDED, false)
+        if (key == null) {
+            _syncSettings.value = load()
+            _lastSyncAt.value = p.getLong(KEY_LAST_SYNC_AT, 0L)
+            _lastSyncSummary.value = p.getString(KEY_LAST_SYNC_SUMMARY, null)
+        }
+    }
+
+    init {
+        prefs.registerOnSharedPreferenceChangeListener(externalChangeListener)
+    }
+
     fun update(transform: (SyncSettings) -> SyncSettings) {
         val next = transform(_syncSettings.value)
         prefs.edit()
