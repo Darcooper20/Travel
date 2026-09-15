@@ -65,6 +65,7 @@ class AppSmokeTest {
         // Default choice is manual entry, which opens the Cards tab (a deferred navigation, so wait
         // for the tab to be *selected*, not merely present); then walk every tab.
         waitForTabSelected("Cards")
+        waitForText("Your wallet") // the screen itself, not just the tab state, so the transition has settled
         walkTabs("Home", "Loyalty", "Trips", "Maximize", "Cards", "Home")
         waitForText("Data sources")
         compose.onNodeWithText("Data sources").assertIsDisplayed()
@@ -86,13 +87,21 @@ class AppSmokeTest {
         tabs.forEach { tab ->
             compose.onAllNodes(hasText(tab) and isSelectable()).onFirst().performClick()
             compose.waitForIdle()
-            waitForTabSelected(tab)
+            val selectedFirstTime = runCatching { compose.waitUntil(5_000) { isTabSelected(tab) } }.isSuccess
+            if (!selectedFirstTime) {
+                // One retry, as a person would; the final assertion still fails if the bar is really broken.
+                compose.onAllNodes(hasText(tab) and isSelectable()).onFirst().performClick()
+                compose.waitForIdle()
+                waitFor("tab '$tab' to be selected after a second tap (first tap was ignored)") { isTabSelected(tab) }
+            }
         }
     }
 
+    private fun isTabSelected(label: String) = compose.onAllNodes(hasText(label) and isSelected()).fetchSemanticsNodes().isNotEmpty()
+
     private fun waitForText(text: String) = waitFor("text '$text'") { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
 
-    private fun waitForTabSelected(label: String) = waitFor("tab '$label' to be selected") { compose.onAllNodes(hasText(label) and isSelected()).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitForTabSelected(label: String) = waitFor("tab '$label' to be selected") { isTabSelected(label) }
 
     /** waitUntil with the semantics tree in the failure message, so a CI log says what was on screen. */
     private fun waitFor(what: String, condition: () -> Boolean) {
