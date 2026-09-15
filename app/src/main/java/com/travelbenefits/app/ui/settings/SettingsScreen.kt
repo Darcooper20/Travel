@@ -12,6 +12,7 @@ import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -163,15 +164,37 @@ fun SettingsScreen(
                         )
                         Text("Google OAuth client ID", style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Required to connect Gmail. Create an \"Android\" OAuth client in Google Cloud Console for this app - see README.md for the exact steps (package name + signing certificate SHA-1).",
+                            "Required to connect Gmail. Create an \"Android\" OAuth client in Google Cloud Console and register exactly these two values, copied from this build:",
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        val setup = viewModel.oauthSetupInfo
+                        CopyableValue("Package name", setup.packageName)
+                        CopyableValue("SHA-1 certificate fingerprint", setup.signingSha1 ?: "unavailable on this device")
                         OutlinedTextField(
                             value = state.googleClientId,
                             onValueChange = viewModel::onGoogleClientIdChange,
                             label = { Text("Client ID (ends in .apps.googleusercontent.com)") },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        // The scheme is compiled into the manifest, so a generic build can
+                        // never receive a response meant for someone else's client ID. Say
+                        // so here rather than letting Google's page fail with invalid_client.
+                        val mismatch = viewModel.redirectSchemeMismatch()
+                        CopyableValue("This build receives sign-in on", setup.redirectScheme)
+                        if (mismatch != null) {
+                            Text(
+                                "That client ID needs a build that receives sign-in on $mismatch. This one cannot, so sign-in will fail. " +
+                                    "Build one with -PappAuthRedirectScheme=$mismatch, or run the \"Build Android APK\" action with that value and install the APK it publishes.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        } else if (state.googleClientId.isNotBlank()) {
+                            Text(
+                                "This build matches that client ID.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                         Text("Plaid backend", style = MaterialTheme.typography.titleSmall)
                         Text("The tiny worker you host (plaid-backend/README.md). The Plaid client secret stays on the worker, never in this app.", style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(
@@ -369,6 +392,15 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+/** A label with a selectable value, so setup values can be copied off the phone. */
+@Composable
+private fun CopyableValue(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SelectionContainer { Text(value, style = MaterialTheme.typography.bodySmall) }
     }
 }
 

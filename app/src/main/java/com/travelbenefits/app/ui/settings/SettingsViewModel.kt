@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.travelbenefits.app.auth.GmailAuthManager
+import com.travelbenefits.app.auth.OAuthSetupInfo
 import com.travelbenefits.app.data.local.AppPrefs
 import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.local.SyncSettings
@@ -57,6 +58,7 @@ class SettingsViewModel @Inject constructor(
     private val securePrefs: SecurePrefs,
     private val appPrefs: AppPrefs,
     private val gmailAuthManager: GmailAuthManager,
+    val oauthSetupInfo: OAuthSetupInfo,
     private val syncScheduler: SyncScheduler,
     private val emailMonitorRepository: EmailMonitorRepository,
     private val activityRepository: ActivityRepository,
@@ -180,10 +182,20 @@ class SettingsViewModel @Inject constructor(
         securePrefs.googleOAuthClientId = value.trim().ifBlank { null }
     }
 
+    /** The scheme this client ID needs when this build cannot receive it; null when they agree. */
+    fun redirectSchemeMismatch(): String? = oauthSetupInfo.mismatchFor(_uiState.value.googleClientId)
+
     /** Null when no Google OAuth client ID has been configured yet, or the intent couldn't be built. */
     fun buildGmailAuthIntent(): Intent? {
         val clientId = _uiState.value.googleClientId.trim()
         if (clientId.isBlank()) return null
+        // Fail here with an explanation rather than sending the user to a browser
+        // that will bounce the response into a scheme this build does not own.
+        redirectSchemeMismatch()?.let {
+            _message.value = "This build listens on ${oauthSetupInfo.redirectScheme}, but that client ID needs $it. " +
+                "Sign-in cannot complete until you install a build made with that scheme - see README.md."
+            return null
+        }
         return try {
             gmailAuthManager.createAuthIntent(clientId)
         } catch (e: Exception) {

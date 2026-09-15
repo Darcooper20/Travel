@@ -11,6 +11,16 @@ on:
       - "claude/credit-card-benefits-tracker-i0jp0m"
       - "claude/travel-rewards-aggregator-rbhc41"
   workflow_dispatch:
+    inputs:
+      appAuthRedirectScheme:
+        description: >-
+          Reversed Google OAuth client ID, e.g. com.googleusercontent.apps.123456-abc
+          (leave blank for a normal build). Required for Gmail sign-in: Google sends
+          the OAuth response to this scheme, and it is compiled into the manifest, so
+          a build whose scheme does not match your client ID can never complete
+          sign-in. The resulting APK is published to the "gmail-build" release.
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -41,13 +51,13 @@ jobs:
           path: app/build/reports/tests/testDebugUnitTest
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon ${{ inputs.appAuthRedirectScheme && format('-PappAuthRedirectScheme={0}', inputs.appAuthRedirectScheme) || '' }}
 
       # Runs R8 with app/proguard-rules.pro. The debug build never shrinks, so
       # without this a missing keep rule would only surface as a crash on a real
       # release install. Unsigned unless a keystore is configured (see README).
       - name: Build release APK (verifies the R8 / ProGuard rules)
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon ${{ inputs.appAuthRedirectScheme && format('-PappAuthRedirectScheme={0}', inputs.appAuthRedirectScheme) || '' }}
 
       - name: Upload build artifact (kept even if the release step below fails)
         uses: actions/upload-artifact@v4
@@ -55,7 +65,26 @@ jobs:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
+      # A build carrying someone's own OAuth scheme is personal to them, so it
+      # goes to its own tag instead of replacing the generic download.
+      - name: Publish the Gmail-enabled APK to the "gmail-build" release
+        if: inputs.appAuthRedirectScheme != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: gmail-build
+          name: Gmail-enabled debug build
+          body: |
+            Built from commit ${{ github.sha }} with
+            `appAuthRedirectScheme=${{ inputs.appAuthRedirectScheme }}`.
+
+            Use this APK only if that is the reversed form of YOUR Google OAuth
+            client ID. Sign-in fails with any other build. Everything else in the
+            app works identically to the generic `debug-latest` download.
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk
+
       - name: Publish APK to the "debug-latest" release
+        if: inputs.appAuthRedirectScheme == ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: debug-latest
