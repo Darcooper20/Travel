@@ -53,8 +53,30 @@ class ConnectionStatusCalculatorTest {
         lastUpdated = now - TimeUnit.DAYS.toMillis(daysOld), memberName = null,
     )
     private fun inputs(
-        gmail: Boolean = false, key: Boolean = false, auto: Boolean = false, lastSync: Long = 0, items: List<PlaidItem> = emptyList(), accounts: List<LoyaltyAccount> = emptyList(),
-    ) = ConnectionStatusCalculator.Inputs(gmail, key, auto, 12, lastSync, null, items, hasSeatsAeroKey = false, accounts = accounts, cards = emptyList(), upcomingTripCount = 0, now = now)
+        gmail: Boolean = false,
+        key: Boolean = false,
+        auto: Boolean = false,
+        lastSync: Long = 0,
+        items: List<PlaidItem> = emptyList(),
+        accounts: List<LoyaltyAccount> = emptyList(),
+        syncHadFailures: Boolean = false,
+    ) = ConnectionStatusCalculator.Inputs(
+        // Named throughout: this list grows, and a positional call silently
+        // shifted every argument when lastEmailSyncHadFailures was added.
+        gmailConnected = gmail,
+        hasAnthropicKey = key,
+        autoSyncEnabled = auto,
+        syncIntervalHours = 12,
+        lastEmailSyncAt = lastSync,
+        lastEmailSyncSummary = null,
+        lastEmailSyncHadFailures = syncHadFailures,
+        plaidItems = items,
+        hasSeatsAeroKey = false,
+        accounts = accounts,
+        cards = emptyList(),
+        upcomingTripCount = 0,
+        now = now,
+    )
 
     @Test
     fun `nothing configured is OFF, not an error`() {
@@ -72,6 +94,17 @@ class ConnectionStatusCalculatorTest {
         assertEquals(SourceStatus.State.ATTENTION, overdue.sources.first().state)
         val manualOnly = calc.compute(inputs(gmail = true, key = true, auto = false, lastSync = now - TimeUnit.HOURS.toMillis(400)))
         assertEquals("no schedule means nothing is overdue", SourceStatus.State.CONNECTED, manualOnly.sources.first().state)
+    }
+
+    @Test
+    fun `a sync that partly failed is shown as needing attention, not as connected`() {
+        val clean = calc.compute(inputs(gmail = true, key = true, lastSync = now - TimeUnit.HOURS.toMillis(1)))
+        assertEquals(SourceStatus.State.CONNECTED, clean.sources.first().state)
+
+        val partial = calc.compute(inputs(gmail = true, key = true, lastSync = now - TimeUnit.HOURS.toMillis(1), syncHadFailures = true))
+        assertEquals(SourceStatus.State.ATTENTION, partial.sources.first().state)
+        assertTrue(partial.sources.first().detail.contains("some mail was not read"))
+        assertTrue(partial.needsAttention)
     }
 
     @Test
