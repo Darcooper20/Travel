@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -66,6 +67,7 @@ class AppSmokeTest {
         listOf("Home", "Loyalty", "Trips", "Maximize", "Cards", "Home").forEach { tab ->
             compose.onAllNodes(hasText(tab) and isSelectable()).onFirst().performClick()
             compose.waitForIdle()
+            waitFor("tab '$tab' to become selected") { compose.onAllNodes(hasText(tab) and isSelected()).fetchSemanticsNodes().isNotEmpty() }
         }
         waitForText("Data sources")
         compose.onNodeWithText("Data sources").assertIsDisplayed()
