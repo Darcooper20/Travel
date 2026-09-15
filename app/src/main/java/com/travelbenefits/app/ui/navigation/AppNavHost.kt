@@ -48,11 +48,6 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) 
         })
         return
     }
-    androidx.compose.runtime.LaunchedEffect(postOnboardingRoute) {
-        val route = postOnboardingRoute ?: return@LaunchedEffect
-        postOnboardingRoute = null
-        navController.navigate(route) { launchSingleTop = true }
-    }
     val pendingRoute by NavigationRequests.pendingRoute.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pendingRoute) {
         if (pendingRoute == NavigationRequests.OPEN_PURCHASE) {
@@ -65,11 +60,28 @@ fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) 
     }
 
     fun navigateTab(route: String) {
+        val startId = navController.graph.findStartDestination().id
+        if (route == Screen.Home.route) {
+            // Home is the start destination. Reaching it with popUpTo(start) { saveState } +
+            // restoreState saves whatever sat directly above Home and then restores it, so the
+            // tap looks ignored (seen on the emulator after onboarding opened the Cards tab).
+            // An exact pop back to the start destination has no such round trip.
+            if (!navController.popBackStack(startId, inclusive = false)) {
+                navController.navigate(route) { launchSingleTop = true }
+            }
+            return
+        }
         navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            popUpTo(startId) { saveState = true }
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(postOnboardingRoute) {
+        val route = postOnboardingRoute ?: return@LaunchedEffect
+        postOnboardingRoute = null
+        if (route in Screen.bottomBarScreens.map { it.route }) navigateTab(route) else navController.navigate(route) { launchSingleTop = true }
     }
 
     Scaffold(

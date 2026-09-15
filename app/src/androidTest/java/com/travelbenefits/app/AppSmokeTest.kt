@@ -72,6 +72,9 @@ class AppSmokeTest {
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Set up connections in Settings (optional)"))
         compose.onAllNodes(hasText("Set up connections in Settings (optional)") and hasClickAction()).onFirst().performClick()
         waitForText("Connections")
+        // A detail screen sits above Home; the Home tab must still return there.
+        walkTabs("Home")
+        waitForText("Data sources")
     }
 
     @Test
