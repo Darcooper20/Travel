@@ -62,7 +62,7 @@ open app/build/reports/androidTests/connected/index.html
 | Stage E (ea260bf) | `build` green (unit tests + APK); `instrumented` failed to compile (androidTest-only errors) |
 | Stage E follow-ups (fe96bdc … 213dc22) | migrations passed on every run; the smoke test exposed, in order: a below-the-fold tap, stale onboarding state cached by the `AppPrefs` singleton, a race with the deferred post-onboarding navigation, and finally a real navigation bug (Home tab ignored when a screen sat directly above the start destination) |
 | Stage E final (b0425a0) | **both jobs green**: 34 unit tests, 5 instrumented tests (3 migration, 2 smoke) on an API 30 emulator; APK published to `debug-latest` |
-| Post-audit fixes (042e0a0) | Four defects fixed, previously untested engines covered, release build added to CI. See "Audit findings" below |
+| Post-audit fixes (042e0a0 … 0da229b) | **all green**: 111 unit tests, 5 instrumented tests, debug APK and release (R8) APK. Four defects fixed, previously untested engines covered. See "Audit findings" below |
 
 ## Acceptance journey
 
@@ -106,6 +106,13 @@ and covered by tests:
    cap override record its figure twice, and the activation caveat never fired
    for rotating categories.
 
+A fifth problem surfaced the moment `assembleRelease` was added to CI: R8
+failed on four missing `com.google.errorprone.annotations` classes referenced
+from Tink, which `androidx.security-crypto` pulls in for
+EncryptedSharedPreferences. The release variant had never been built, so the
+first person to attempt a release would have hit it. Fixed with a `dontwarn`
+in `app/proguard-rules.pro`; the release APK now builds in CI on every push.
+
 Three of the four were invisible to the user as errors: they produced
 confident, wrong-but-plausible output. That is the argument for the coverage
 added alongside them.
@@ -125,7 +132,8 @@ added alongside them.
 - Provenance is complete for 11 cards; other catalog entries are dated as a
   group, not per rule.
 - The release variant is built but never run. CI proves the R8 rules let it
-  compile and shrink; nobody has installed a minified build and exercised it.
+  compile and shrink (it did not, until the Tink `dontwarn` was added); nobody
+  has installed a minified build and exercised it.
   Reflection-driven paths (Retrofit, kotlinx.serialization, Room, AppAuth)
   have keep rules, but the first real release install should be smoke-tested
   by hand.
