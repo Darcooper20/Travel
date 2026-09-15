@@ -31,18 +31,30 @@ class CapUsageCalculator @Inject constructor() {
             card.entry.categoryRates.filter { it.capUsd != null && it.capPeriod != CapPeriod.NONE }.forEach { rate ->
                 val key = rate.capGroup ?: rate.category.name
                 if (!seen.add(key)) return@forEach
-                manual[key]?.let { out += CapUsage(id, key, it, "your entry"); return@forEach }
+                val override = manual[key]
+                if (override != null) {
+                    out += CapUsage(id, key, override, "your entry")
+                    return@forEach
+                }
                 val start = periodStart(rate.capPeriod, today, card.walletCard.dateOpenedEpochDay)
                 val categories = if (rate.capGroup != null) card.entry.categoryRates.filter { it.capGroup == rate.capGroup }.map { it.category }.toSet() else setOf(rate.category)
                 val spent = mine.filter { it.epochDay >= start && it.category in categories }.sumOf { it.amountUsd }
                 if (mine.isNotEmpty()) out += CapUsage(id, key, spent, if (rate.capPeriod == CapPeriod.STATEMENT_CYCLE) "transactions, month approximates the statement cycle" else "transactions")
             }
-            card.rotating?.let { rot ->
+            val rot = card.rotating
+            if (rot != null) {
                 val key = "rotating:${rot.quarterKey}"
-                manual[key]?.let { out += CapUsage(id, key, it, "your entry"); return@let }
-                val start = Quarters.start(rot.quarterKey).toEpochDay()
-                val spent = mine.filter { it.epochDay >= start && it.category in rot.categories }.sumOf { it.amountUsd }
-                if (mine.isNotEmpty()) out += CapUsage(id, key, spent, "transactions")
+                // Written as a plain if/else on purpose. With `manual[key]?.let { ...; return@let }`
+                // the label bound to the INNER let, so an override recorded its entry and then fell
+                // through and recorded a second, transaction-derived one for the same key.
+                val override = manual[key]
+                if (override != null) {
+                    out += CapUsage(id, key, override, "your entry")
+                } else {
+                    val start = Quarters.start(rot.quarterKey).toEpochDay()
+                    val spent = mine.filter { it.epochDay >= start && it.category in rot.categories }.sumOf { it.amountUsd }
+                    if (mine.isNotEmpty()) out += CapUsage(id, key, spent, "transactions")
+                }
             }
         }
         return out

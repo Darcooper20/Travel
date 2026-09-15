@@ -55,6 +55,10 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
     private val _lastSyncSummary = MutableStateFlow(prefs.getString(KEY_LAST_SYNC_SUMMARY, null))
     val lastSyncSummary: StateFlow<String?> = _lastSyncSummary.asStateFlow()
 
+    private val _lastSyncHadFailures = MutableStateFlow(prefs.getBoolean(KEY_LAST_SYNC_FAILED, false))
+    /** True when the last sync could not search, download or read part of the mailbox. */
+    val lastSyncHadFailures: StateFlow<Boolean> = _lastSyncHadFailures.asStateFlow()
+
     private val _onboardingDone = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDED, false))
     /** False until the user finishes (or skips) the guided setup; Settings can reset it to show the guide again. */
     val onboardingDone: StateFlow<Boolean> = _onboardingDone.asStateFlow()
@@ -73,6 +77,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             _syncSettings.value = load()
             _lastSyncAt.value = p.getLong(KEY_LAST_SYNC_AT, 0L)
             _lastSyncSummary.value = p.getString(KEY_LAST_SYNC_SUMMARY, null)
+            _lastSyncHadFailures.value = p.getBoolean(KEY_LAST_SYNC_FAILED, false)
         }
     }
 
@@ -101,17 +106,23 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         _syncSettings.value = next
     }
 
-    fun recordSync(completedAt: Long, summary: String) {
-        prefs.edit().putLong(KEY_LAST_SYNC_AT, completedAt).putString(KEY_LAST_SYNC_SUMMARY, summary).apply()
+    fun recordSync(completedAt: Long, summary: String, hadFailures: Boolean = false) {
+        prefs.edit()
+            .putLong(KEY_LAST_SYNC_AT, completedAt)
+            .putString(KEY_LAST_SYNC_SUMMARY, summary)
+            .putBoolean(KEY_LAST_SYNC_FAILED, hadFailures)
+            .apply()
         _lastSyncAt.value = completedAt
         _lastSyncSummary.value = summary
+        _lastSyncHadFailures.value = hadFailures
     }
 
     /** Forget the sync watermark so the next scan re-reads the full lookback window (processed-email ledger still dedupes). */
     fun resetSyncWatermark() {
-        prefs.edit().remove(KEY_LAST_SYNC_AT).remove(KEY_LAST_SYNC_SUMMARY).apply()
+        prefs.edit().remove(KEY_LAST_SYNC_AT).remove(KEY_LAST_SYNC_SUMMARY).remove(KEY_LAST_SYNC_FAILED).apply()
         _lastSyncAt.value = 0L
         _lastSyncSummary.value = null
+        _lastSyncHadFailures.value = false
     }
 
     private fun load(): SyncSettings {
@@ -151,6 +162,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_QUIET_ENABLED = "quiet_hours_enabled"
         const val KEY_LAST_SYNC_AT = "last_sync_at"
         const val KEY_LAST_SYNC_SUMMARY = "last_sync_summary"
+        const val KEY_LAST_SYNC_FAILED = "last_sync_had_failures"
         const val KEY_ONBOARDED = "has_seen_onboarding"
     }
 }

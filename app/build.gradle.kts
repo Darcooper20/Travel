@@ -56,6 +56,26 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+
+        // Optional real release key. Nothing sensitive is committed: the path and
+        // passwords come from gradle properties or the environment, so if you
+        // haven't set them the release variant simply builds unsigned (still
+        // useful, because it proves the R8 rules in proguard-rules.pro are right).
+        // Set releaseStoreFile/releaseStorePassword/releaseKeyAlias/releaseKeyPassword
+        // in ~/.gradle/gradle.properties, or RELEASE_STORE_FILE etc. in the env.
+        val releaseStorePath = (project.findProperty("releaseStoreFile") as String?)
+            ?: System.getenv("RELEASE_STORE_FILE")
+        if (!releaseStorePath.isNullOrBlank() && file(releaseStorePath).exists()) {
+            create("release") {
+                storeFile = file(releaseStorePath)
+                storePassword = (project.findProperty("releaseStorePassword") as String?)
+                    ?: System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = (project.findProperty("releaseKeyAlias") as String?)
+                    ?: System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = (project.findProperty("releaseKeyPassword") as String?)
+                    ?: System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -67,9 +87,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // No release signingConfig is set here - see README.md to add your
-            // own keystore before running `assembleRelease`. Without one,
-            // build and sideload the debug variant.
+            // Null when no keystore was configured above; the APK then builds
+            // unsigned and cannot be installed, but R8 still runs, which is what
+            // CI checks. See README.md to configure your own key.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

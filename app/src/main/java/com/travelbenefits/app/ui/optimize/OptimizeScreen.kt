@@ -18,8 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -414,7 +414,7 @@ private fun RedeemTab(viewModel: OptimizeViewModel) {
                 val context = LocalContext.current
                 val profile = viewModel.profileFor(result.input.program)
                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profile.awardSearchUrl))) }) {
-                    Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Opens in your browser", modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Open ${result.input.program.displayName} award search")
                 }
@@ -466,7 +466,7 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
                 LabelValue("App's value estimate", "~${profile.estValueCentsPerPoint}¢ per point")
                 profile.awardBand?.let { LabelValue("Typical award night", "${formatPoints(it.typicalNightPoints.toLong())} pts (${formatPoints(it.lowNightPoints.toLong())}–${formatPoints(it.highNightPoints.toLong())})") }
                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profile.awardSearchUrl))) }) {
-                    Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Opens in your browser", modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Search awards")
                 }
@@ -751,7 +751,7 @@ private fun WatchRow(watch: AwardWatch, viewModel: OptimizeViewModel) {
                 watch.program?.let { p ->
                     val context = LocalContext.current
                     TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.profileFor(p).awardSearchUrl))) }) {
-                        Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Opens in your browser", modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Search")
                     }
@@ -811,7 +811,7 @@ private fun AskTab(viewModel: OptimizeViewModel) {
                 maxLines = 4,
             )
             IconButton(onClick = viewModel::ask, enabled = state.question.isNotBlank() && !state.isThinking) {
-                Icon(Icons.Filled.Send, contentDescription = "Ask")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Ask")
             }
         }
     }

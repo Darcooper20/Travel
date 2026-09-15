@@ -12,7 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,7 +42,7 @@ fun ReconcileScreen(onBack: () -> Unit, viewModel: ReconcileViewModel = hiltView
     val state by viewModel.uiState.collectAsState()
     val clipboard = LocalClipboardManager.current
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Expected vs received") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Expected vs received") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize().padding(padding)) {
             item { CaveatCard("Expectations are created when you record a booking or an eligible charge. Nothing is a discrepancy before its due date (posting delays are normal). Matches need evidence; anything unclear waits for you. Claim drafts are text for you to send - the app never submits them.") }
             if (state.rows.isEmpty()) item { Text("No expectations yet. Record a booking on a trip to start tracking what should post.") }

@@ -43,6 +43,8 @@ class ConnectionStatusCalculator @javax.inject.Inject constructor() {
         val syncIntervalHours: Int,
         val lastEmailSyncAt: Long,
         val lastEmailSyncSummary: String?,
+        /** The last run could not search, download or read part of the mailbox. */
+        val lastEmailSyncHadFailures: Boolean,
         val plaidItems: List<PlaidItem>,
         val hasSeatsAeroKey: Boolean,
         val accounts: List<LoyaltyAccount>,
@@ -63,9 +65,16 @@ class ConnectionStatusCalculator @javax.inject.Inject constructor() {
             else -> {
                 val ageHours = TimeUnit.MILLISECONDS.toHours(i.now - i.lastEmailSyncAt)
                 val overdue = i.autoSyncEnabled && ageHours > i.syncIntervalHours * 2L + 1
-                val state = if (overdue) SourceStatus.State.ATTENTION else SourceStatus.State.CONNECTED
+                // A run that partly failed is not "connected and fine": coverage has a hole in it.
+                val state = if (overdue || i.lastEmailSyncHadFailures) SourceStatus.State.ATTENTION else SourceStatus.State.CONNECTED
                 val detail = buildString {
-                    append(if (overdue) "Background sync is overdue (last run ${describeAge(ageHours)})." else "Last sync ${describeAge(ageHours)}.")
+                    append(
+                        when {
+                            i.lastEmailSyncHadFailures -> "Last run finished with errors (${describeAge(ageHours)}), so some mail was not read."
+                            overdue -> "Background sync is overdue (last run ${describeAge(ageHours)})."
+                            else -> "Last sync ${describeAge(ageHours)}."
+                        },
+                    )
                     append(if (i.autoSyncEnabled) " Auto every ${i.syncIntervalHours} h." else " Background sync off.")
                     i.lastEmailSyncSummary?.takeIf { it.isNotBlank() }?.let { append(' ').append(it) }
                 }

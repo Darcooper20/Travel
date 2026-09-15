@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,7 +57,7 @@ fun TripDetailScreen(onBack: () -> Unit, viewModel: TripDetailViewModel = hiltVi
     val f = state.form
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(trip?.title ?: "Trip") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }) },
+        topBar = { TopAppBar(title = { Text(trip?.title ?: "Trip") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         if (trip == null) { Text("Loading…", modifier = Modifier.padding(padding).padding(16.dp)); return@Scaffold }

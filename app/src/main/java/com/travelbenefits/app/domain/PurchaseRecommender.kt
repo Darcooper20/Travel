@@ -101,7 +101,8 @@ class PurchaseRecommender @Inject constructor() {
             capUsd = versioned.rotatingCapUsd
             capKey = "rotating:${rotating.quarterKey}"
             capPeriod = CapPeriod.QUARTERLY
-            requiresActivation = true
+            // Outstanding only when the user has not ticked "activated" for this quarter.
+            requiresActivation = !rotating.activated
             rateNote = "${rotating.quarterKey.replace("-", " ")} rotating category"
             if (!rotating.activated) {
                 warnings += "Rotating category not marked activated - 5% only applies after activation."
@@ -116,16 +117,18 @@ class PurchaseRecommender @Inject constructor() {
             requiresActivation = categoryRate.requiresActivation
             rateNote = categoryRate.note
             if (categoryRate.channel != BookingChannel.ANY) conditions += "Applies when ${categoryRate.channel.label}"
-            if (requiresActivation) {
-                conditions += "Requires activation/enrollment"
-                confidence = minOf(confidence, Confidence.MEDIUM)
-            }
         } else {
             headline = base
             fallback = base
             reasons += "No bonus category for ${category.label.lowercase()} - base rate."
         }
         rateNote?.let { conditions += it }
+        // Applies to every branch above. It used to sit inside the category branch only,
+        // so a rotating 5% was quoted at full confidence with no activation caveat.
+        if (requiresActivation) {
+            conditions += "Requires activation/enrollment"
+            confidence = minOf(confidence, Confidence.MEDIUM)
+        }
 
         // 2. Cap-aware split.
         var amountAtHeadline = amount

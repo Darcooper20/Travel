@@ -15,6 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Hotel
@@ -333,12 +336,21 @@ private fun SourceStatusRow(source: SourceStatus) {
         SourceStatus.State.ATTENTION -> MaterialTheme.colorScheme.error
         SourceStatus.State.OFF -> MaterialTheme.colorScheme.outline
     }
+    // Distinct shapes, not just colour, and each carries a spoken label: the
+    // state was previously a bare glyph, which a screen reader reads as
+    // punctuation and which colour-blind users could not tell apart.
+    val icon = when (source.state) {
+        SourceStatus.State.CONNECTED -> Icons.Filled.CheckCircle
+        SourceStatus.State.ATTENTION -> Icons.Filled.Warning
+        SourceStatus.State.OFF -> Icons.Filled.RadioButtonUnchecked
+    }
+    val stateLabel = when (source.state) {
+        SourceStatus.State.CONNECTED -> "Connected"
+        SourceStatus.State.ATTENTION -> "Needs attention"
+        SourceStatus.State.OFF -> "Not set up"
+    }
     Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            when (source.state) { SourceStatus.State.CONNECTED -> "●"; SourceStatus.State.ATTENTION -> "▲"; SourceStatus.State.OFF -> "○" },
-            color = color,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Icon(icon, contentDescription = stateLabel, tint = color, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(source.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)

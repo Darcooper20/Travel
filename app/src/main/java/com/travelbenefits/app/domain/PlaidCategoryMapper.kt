@@ -73,10 +73,29 @@ object PlaidCategoryMapper {
         "BANK_FEES" to null,
     )
 
+    /**
+     * Order of trust:
+     *  1. a SPECIFIC Plaid detailed category (it saw the merchant's own coding);
+     *  2. Plaid saying explicitly that this is not spend - never second-guessed,
+     *     so a card payment or transfer can't be turned into "dining" by its name;
+     *  3. the merchant name, which rescues everything Plaid dumps into a vague
+     *     bucket ("GENERAL_MERCHANDISE", no category at all) - without this the
+     *     misrouted-spend figures silently under-count;
+     *  4. Plaid's coarse primary category;
+     *  5. OTHER.
+     */
     fun map(pfcPrimary: String?, pfcDetailed: String?, merchantOrName: String?): SpendingCategory? {
-        pfcDetailed?.let { d -> detailed[d]?.let { return it } }
-        val p = pfcPrimary ?: return SpendingCategory.OTHER
-        if (p in primary) return primary[p]
+        val fromDetailed = pfcDetailed?.let { detailed[it] }
+        if (fromDetailed != null && fromDetailed != SpendingCategory.OTHER) return fromDetailed
+
+        // Explicit non-spend beats any merchant-name guess.
+        val primaryKnown = pfcPrimary != null && pfcPrimary in primary
+        if (primaryKnown && primary[pfcPrimary] == null) return null
+
+        MerchantKeywords.categoryFor(merchantOrName)?.let { return it }
+
+        if (fromDetailed != null) return fromDetailed
+        if (primaryKnown) return primary[pfcPrimary]
         return SpendingCategory.OTHER
     }
 }

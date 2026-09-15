@@ -153,10 +153,11 @@ class DashboardViewModel @Inject constructor(
     val uiState: StateFlow<DashboardUiState> = combine(
         actionInputs,
         appPrefs.lastSyncAt,
-        appPrefs.lastSyncSummary,
+        combine(appPrefs.lastSyncSummary, appPrefs.lastSyncHadFailures) { text, failed -> text to failed },
         appPrefs.syncSettings,
         gmailAuthManager.isSignedIn,
-    ) { (state, acc, extra), lastSync, summary, settings, gmail ->
+    ) { (state, acc, extra), lastSync, syncOutcome, settings, gmail ->
+        val (summary, syncHadFailures) = syncOutcome
         val (accounts, cards, credits) = acc
         val (plaidItems, states) = extra
         val actions = actionEngine.build(
@@ -180,6 +181,7 @@ class DashboardViewModel @Inject constructor(
                     syncIntervalHours = settings.syncIntervalHours,
                     lastEmailSyncAt = lastSync,
                     lastEmailSyncSummary = summary,
+                    lastEmailSyncHadFailures = syncHadFailures,
                     plaidItems = plaidItems,
                     hasSeatsAeroKey = !securePrefs.seatsAeroApiKey.isNullOrBlank(),
                     accounts = accounts,

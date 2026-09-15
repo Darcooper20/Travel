@@ -43,6 +43,12 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
+      # Runs R8 with app/proguard-rules.pro. The debug build never shrinks, so
+      # without this a missing keep rule would only surface as a crash on a real
+      # release install. Unsigned unless a keystore is configured (see README).
+      - name: Build release APK (verifies the R8 / ProGuard rules)
+        run: ./gradlew assembleRelease --no-daemon
+
       - name: Upload build artifact (kept even if the release step below fails)
         uses: actions/upload-artifact@v4
         with:

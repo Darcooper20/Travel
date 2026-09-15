@@ -20,7 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -219,12 +219,15 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { expanded = !expanded }) {
-                    Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null)
+                    Icon(
+                        if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse details" else "Expand details",
+                    )
                     Text(if (expanded) "Less" else "Details & history")
                 }
                 Row {
                     IconButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(profile.accountUrl))) }) {
-                        Icon(Icons.Filled.OpenInNew, contentDescription = "Open program site")
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open program site")
                     }
                     IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Remove") }
                 }

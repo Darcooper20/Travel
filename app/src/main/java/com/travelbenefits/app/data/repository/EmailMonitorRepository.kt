@@ -50,21 +50,51 @@ data class SyncReport(
     val cardBalanceUpdates: Int = 0,
     val certificatesFound: Int = 0,
     val highlights: List<String> = emptyList(),
+    /** Gmail searches that errored. Mail they would have matched was never seen, so "nothing found" would be a lie. */
+    val searchFailures: Int = 0,
+    /** Individual messages Gmail refused to hand over. Not added to the processed ledger, so they are retried. */
+    val fetchFailures: Int = 0,
+    /** Emails fetched but not understood (model call or JSON parse failed). Also retried, never silently dropped. */
+    val unreadableEmails: Int = 0,
+    /** First underlying error, shown so the user can act (expired key, no network, quota). */
+    val failureReason: String? = null,
 ) {
     val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + certificatesFound
 
-    fun summary(): String = when {
-        emailsRead == 0 -> "No new travel or loyalty emails since the last sync."
-        notableCount == 0 -> "Read $emailsRead email(s); nothing new to record."
-        else -> listOfNotNull(
-            accountsFound.takeIf { it > 0 }?.let { "$it membership(s) found" },
-            balanceChanges.takeIf { it > 0 }?.let { "$it balance change(s)" },
-            tierChanges.takeIf { it > 0 }?.let { "$it status change(s)" },
-            newTrips.takeIf { it > 0 }?.let { "$it new trip(s)" },
-            expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
-            cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
-            certificatesFound.takeIf { it > 0 }?.let { "$it certificate(s)" },
-        ).joinToString(", ") + " from $emailsRead email(s)."
+    /** True when some part of this run failed, so an empty result does NOT mean "there was nothing". */
+    val isPartial: Boolean get() = searchFailures > 0 || fetchFailures > 0 || unreadableEmails > 0
+
+    /** True when the run learned nothing at all AND something went wrong - the case that must never read as "all clear". */
+    val isBlind: Boolean get() = emailsRead == 0 && isPartial
+
+    private fun problemSuffix(): String {
+        if (!isPartial) return ""
+        val parts = listOfNotNull(
+            searchFailures.takeIf { it > 0 }?.let { "$it search(es) failed" },
+            fetchFailures.takeIf { it > 0 }?.let { "$it email(s) couldn't be downloaded" },
+            unreadableEmails.takeIf { it > 0 }?.let { "$it email(s) couldn't be read" },
+        ).joinToString(", ")
+        val why = failureReason?.let { " ($it)" }.orEmpty()
+        return " $parts$why - nothing was skipped permanently, the next sync retries them."
+    }
+
+    fun summary(): String {
+        val body = when {
+            // Ordered so a failed run can never borrow the wording of a clean one.
+            isBlind -> "Couldn't read any email this run, so nothing could be checked."
+            emailsRead == 0 -> "No new travel or loyalty emails since the last sync."
+            notableCount == 0 -> "Read $emailsRead email(s); nothing new to record."
+            else -> listOfNotNull(
+                accountsFound.takeIf { it > 0 }?.let { "$it membership(s) found" },
+                balanceChanges.takeIf { it > 0 }?.let { "$it balance change(s)" },
+                tierChanges.takeIf { it > 0 }?.let { "$it status change(s)" },
+                newTrips.takeIf { it > 0 }?.let { "$it new trip(s)" },
+                expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
+                cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
+                certificatesFound.takeIf { it > 0 }?.let { "$it certificate(s)" },
+            ).joinToString(", ") + " from $emailsRead email(s)."
+        }
+        return body + problemSuffix()
     }
 }
 
@@ -129,6 +159,12 @@ class EmailMonitorRepository @Inject constructor(
                 }
 
                 onProgress("Looking for new loyalty, travel, shopping and card emails…")
+                // Failures are counted, never swallowed: an empty result set from a failed
+                // search is indistinguishable from a genuinely empty inbox unless we say so.
+                var searchFailures = 0
+                var fetchFailures = 0
+                var firstFailure: String? = null
+                fun noteFailure(t: Throwable) { if (firstFailure == null) firstFailure = describeError(t) }
                 // Insertion order = priority under the per-sync cap: bookings first
                 // (time-sensitive), then hotel/airline statements, then card
                 // statements, then the noisier shop/dining senders.
@@ -137,10 +173,12 @@ class EmailMonitorRepository @Inject constructor(
                     val senders = TRIP_SENDER_DOMAINS.joinToString(" OR ") { "from:$it" }
                     val query = "($senders) $TRIP_SUBJECT_TERMS after:$afterEpochSeconds"
                     runCatching { gmailApi.listMessages(bearer, query, maxResults = MESSAGES_FOR_TRIPS) }
+                        .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> refs.putIfAbsent(ref.id, null) }
                     // Generic confirmations from anywhere else (small airlines, boutique hotels, rail).
                     val generic = "$TRIP_SUBJECT_TERMS -category:promotions after:$afterEpochSeconds"
                     runCatching { gmailApi.listMessages(bearer, generic, maxResults = MESSAGES_FOR_TRIPS) }
+                        .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> refs.putIfAbsent(ref.id, null) }
                 }
                 val programsToScan = LoyaltyProgram.entries.filter { program ->
@@ -154,6 +192,7 @@ class EmailMonitorRepository @Inject constructor(
                     val senders = CARD_ISSUER_DOMAINS.joinToString(" OR ") { "from:$it" }
                     val query = "($senders) $CARD_SUBJECT_TERMS -category:promotions after:$afterEpochSeconds"
                     runCatching { gmailApi.listMessages(bearer, query, maxResults = MESSAGES_FOR_CARDS) }
+                        .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> cardRefs += ref.id }
                 }
                 for (program in programsToScan) {
@@ -168,7 +207,9 @@ class EmailMonitorRepository @Inject constructor(
                     val perProgram = if (isShop) MESSAGES_PER_SHOP else MESSAGES_PER_PROGRAM
                     val exclusions = if (isShop) " -category:promotions" else ""
                     val query = "(" + program.gmailSenderDomains.joinToString(" OR ") { "from:$it" } + ")$exclusions after:$afterEpochSeconds"
-                    val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = perProgram) }.getOrNull() ?: continue
+                    val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = perProgram) }
+                        .onFailure { searchFailures++; noteFailure(it) }
+                        .getOrNull() ?: continue
                     list.messages.forEach { ref -> refs.putIfAbsent(ref.id, program) }
                 }
                 cardRefs.forEach { refs.putIfAbsent(it, null) }
@@ -176,7 +217,12 @@ class EmailMonitorRepository @Inject constructor(
                 val already = if (refs.isEmpty()) emptySet() else processedEmailDao.findExisting(refs.keys.toList()).toSet()
                 val toRead = refs.keys.filterNot { it in already }.take(settings.maxEmailsPerSync)
                 if (toRead.isEmpty()) {
-                    val report = SyncReport(emailsRead = 0, skippedAlreadyProcessed = already.size)
+                    val report = SyncReport(
+                        emailsRead = 0,
+                        skippedAlreadyProcessed = already.size,
+                        searchFailures = searchFailures,
+                        failureReason = firstFailure,
+                    )
                     finish(now, report)
                     return Result.success(report)
                 }
@@ -185,7 +231,9 @@ class EmailMonitorRepository @Inject constructor(
                 val candidates = mutableListOf<EmailCandidate>()
                 for ((index, id) in toRead.withIndex()) {
                     if (index % 10 == 0 && index > 0) onProgress("Reading email ${index + 1} of ${toRead.size}…")
-                    val detail = runCatching { gmailApi.getMessage(bearer, id) }.getOrNull() ?: continue
+                    val detail = runCatching { gmailApi.getMessage(bearer, id) }
+                        .onFailure { fetchFailures++; noteFailure(it) }
+                        .getOrNull() ?: continue
                     candidates += EmailCandidate(
                         messageId = id,
                         programHint = refs[id],
@@ -197,12 +245,28 @@ class EmailMonitorRepository @Inject constructor(
                 }
 
                 onProgress("Extracting balances, trips and alerts from ${candidates.size} email(s)…")
-                val extraction = extract(apiKey, candidates)
+                val outcome = extract(apiKey, candidates)
+                outcome.firstError?.let { noteFailure(IllegalStateException(it)) }
 
-                val report = apply(extraction, candidates, now)
-                processedEmailDao.insertAll(candidates.map { ProcessedEmailEntity(it.messageId, now) })
-                finish(now, report.copy(skippedAlreadyProcessed = already.size))
-                Result.success(report)
+                // Only emails whose batch was read AND parsed enter the processed ledger.
+                // Marking a failed batch processed would drop those emails forever, since
+                // later syncs skip anything in the ledger.
+                val understood = candidates.filter { it.messageId in outcome.succeededMessageIds }
+                // apply() resolves the model's sourceIndex positionally against this exact list,
+                // so it must stay the FULL candidate list; filtering it would shift every index
+                // and attribute balances to the wrong email.
+                val report = apply(outcome.result, candidates, now)
+                processedEmailDao.insertAll(understood.map { ProcessedEmailEntity(it.messageId, now) })
+                val full = report.copy(
+                    emailsRead = understood.size,
+                    skippedAlreadyProcessed = already.size,
+                    searchFailures = searchFailures,
+                    fetchFailures = fetchFailures,
+                    unreadableEmails = candidates.size - understood.size,
+                    failureReason = firstFailure,
+                )
+                finish(now, full)
+                Result.success(full)
             } catch (e: Exception) {
                 activityEventDao.insert(
                     ActivityEventEntity(
@@ -233,15 +297,17 @@ class EmailMonitorRepository @Inject constructor(
     }
 
     private suspend fun finish(now: Long, report: SyncReport) {
-        appPrefs.recordSync(now, report.summary())
+        appPrefs.recordSync(now, report.summary(), hadFailures = report.isPartial)
         activityEventDao.insert(
             ActivityEventEntity(
-                kind = ActivityKind.SYNC_COMPLETED,
+                // A run that could not see the mailbox is a failure, not a quiet success.
+                kind = if (report.isBlind) ActivityKind.SYNC_FAILED else ActivityKind.SYNC_COMPLETED,
                 program = null,
-                title = "Email sync finished",
+                title = if (report.isBlind) "Sync couldn't read your mail" else "Email sync finished",
                 detail = report.summary(),
                 occurredAt = now,
-                isRead = report.notableCount == 0,
+                // Partial runs stay unread so the problem is visible even when nothing was found.
+                isRead = report.notableCount == 0 && !report.isPartial,
             ),
         )
         activityEventDao.prune(olderThan = now - TimeUnit.DAYS.toMillis(180))
@@ -249,12 +315,22 @@ class EmailMonitorRepository @Inject constructor(
 
     // ---- Extraction -------------------------------------------------------
 
-    private suspend fun extract(apiKey: String, candidates: List<EmailCandidate>): ExtractionResult {
+    /** What [extract] managed to do, so the caller can tell "nothing there" from "couldn't look". */
+    private data class ExtractionOutcome(
+        val result: ExtractionResult,
+        /** Message IDs whose batch was both fetched and parsed. Only these may be marked processed. */
+        val succeededMessageIds: Set<String>,
+        val firstError: String?,
+    )
+
+    private suspend fun extract(apiKey: String, candidates: List<EmailCandidate>): ExtractionOutcome {
         val merged = ExtractionResult()
         val loyalty = mutableListOf<ExtractedLoyalty>()
         val trips = mutableListOf<ExtractedTrip>()
         val alerts = mutableListOf<ExtractedAlert>()
         val cardRewards = mutableListOf<ExtractedCardRewards>()
+        val succeeded = mutableSetOf<String>()
+        var firstError: String? = null
         candidates.chunked(BATCH_SIZE).forEachIndexed { batchIndex, batch ->
             val offset = batchIndex * BATCH_SIZE
             val payload = batch.mapIndexed { i, c ->
@@ -275,17 +351,30 @@ class EmailMonitorRepository @Inject constructor(
                     userText = payload,
                     maxTokens = 4096,
                 )
-            }.getOrNull() ?: return@forEachIndexed
+            }.onFailure { if (firstError == null) firstError = describeError(it) }
+                .getOrNull() ?: return@forEachIndexed
 
             val parsed = runCatching {
                 json.decodeFromString<ExtractionResult>(CardLookupRepository.stripCodeFences(text))
-            }.getOrNull() ?: return@forEachIndexed
+            }.onFailure { if (firstError == null) firstError = "the reply wasn't valid JSON" }
+                .getOrNull() ?: return@forEachIndexed
             loyalty += parsed.loyaltyUpdates
             trips += parsed.trips
             alerts += parsed.alerts
             cardRewards += parsed.cardRewards
+            batch.forEach { succeeded += it.messageId }
         }
-        return merged.copy(loyaltyUpdates = loyalty, trips = trips, alerts = alerts, cardRewards = cardRewards)
+        return ExtractionOutcome(
+            merged.copy(loyaltyUpdates = loyalty, trips = trips, alerts = alerts, cardRewards = cardRewards),
+            succeeded,
+            firstError,
+        )
+    }
+
+    /** Short, user-readable cause. Never includes the request body, headers or any key. */
+    private fun describeError(t: Throwable): String {
+        val message = t.message?.take(140)?.takeIf { it.isNotBlank() }
+        return message ?: t.javaClass.simpleName
     }
 
     // ---- Applying results ------------------------------------------------

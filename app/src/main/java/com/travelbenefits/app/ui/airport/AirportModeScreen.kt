@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,7 +34,7 @@ import com.travelbenefits.app.ui.common.formatRelative
 @Composable
 fun AirportModeScreen(onBack: () -> Unit, viewModel: AirportModeViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsState()
-    Scaffold(topBar = { TopAppBar(title = { Text("Airport mode") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Airport mode") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize().padding(padding)) {
             item { CaveatCard("Everything here comes from data already on the phone (works offline; shown as of ${formatRelative(state.cachedAt)}). Live terminal, gate and lounge hours are not available - no provider is integrated - so check the airport or lounge app for those.") }
             if (state.trips.isEmpty()) item { Text("No flights in the next 48 hours.") }
