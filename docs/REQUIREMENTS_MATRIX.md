@@ -32,10 +32,13 @@ Paths are relative to `app/src/main/java/com/travelbenefits/app/`.
 | Requirement | Status | Where | Verified |
 |---|---|---|---|
 | Recommend for merchant/category/amount with cap remaining and fallback rate (acceptance: $50 left under 5% cap, $100 purchase → $3.00) | implemented | `domain/PurchaseRecommender.kt` | unit (`PurchaseRecommenderTest`) |
-| Merchant text → category classifier | implemented | `domain/MerchantClassifier.kt` | unit |
+| Merchant text → category classifier | implemented | `domain/MerchantClassifier.kt`, shared table in `domain/MerchantKeywords.kt` | unit (`MerchantClassifierTest`) |
 | Offers stacked when enrolled; portal/min-spend notes | implemented | `PurchaseRecommender.applyOffers`, `data/repository/OfferRepository.kt` | unit (`StageDTest`) |
 | Home-screen widget and app shortcut opening the picker | implemented | `widget/BestCardWidget.kt`, `res/xml/shortcuts.xml`, `ui/navigation/NavigationRequests.kt` | static (not exercised on a device in this session) |
 | Cash-back displayed in dollars, points valued at user or default ¢/pt | implemented | `PurchaseRecommender` (`rewardUnits` / `rewardsValue`), `OverrideRepository.valuations` | unit |
+| Activation caveat shown for every rate that needs one | implemented (was missing on rotating categories) | `PurchaseRecommender` | unit |
+| Cap usage from transactions, with manual overrides winning outright | implemented | `domain/CapUsageCalculator.kt` | unit (`CapUsageCalculatorTest`) |
+| Plaid transactions categorised using the merchant name, not just Plaid's bucket | implemented (previously ignored) | `domain/PlaidCategoryMapper.kt` | unit (`PlaidCategoryMapperTest`) |
 
 ## 4. Benefit ledger
 
@@ -113,6 +116,9 @@ Paths are relative to `app/src/main/java/com/travelbenefits/app/`.
 |---|---|---|---|
 | Guided onboarding: manual / import / optional connections; advanced config hidden | implemented | `ui/onboarding/`, `ui/settings/SettingsScreen.kt` | instrumented (`AppSmokeTest`) |
 | Connection status: last sync, coverage, stale values, errors | implemented | `domain/ConnectionStatus.kt`, dashboard "Data sources" card | unit (`ConnectionStatusCalculatorTest`) |
+| A failed sync is never reported as a clean one | implemented (previously indistinguishable) | `SyncReport` in `data/repository/EmailMonitorRepository.kt` | unit (`SyncReportTest`) |
+| Emails the app could not read are retried, never silently dropped | implemented (previously written to the processed ledger anyway) | `EmailMonitorRepository.sync` / `extract` | unit, static |
+| State conveyed by shape and a spoken label, not colour alone | implemented | dashboard `SourceStatusRow`, settings `ConnectionRow` | static |
 | Secrets only in encrypted prefs; never in source, BuildConfig, logs or exports | implemented | `data/local/SecurePrefs.kt`, `di/NetworkModule.kt` (header redaction), `BackupRepository` | static |
 | Email and web content treated as untrusted (prompt-injection hardening) | implemented | `domain/PromptGuard.kt` applied to every model call | unit (`PromptGuardTest`) |
 | Read-only Gmail scope; user can disconnect and clear history | implemented | `auth/GmailAuthManager.kt`, Settings | static |
@@ -123,7 +129,9 @@ Paths are relative to `app/src/main/java/com/travelbenefits/app/`.
 |---|---|---|---|
 | Room migrations v1→v9, all additive, no destructive fallback | implemented | `data/local/Migrations.kt`, `di/DatabaseModule.kt` | instrumented |
 | Background work via WorkManager with Hilt workers | implemented | `work/` | static |
-| Deterministic engines with unit tests | implemented | `domain/*` | unit (7 test classes) |
+| Deterministic engines with unit tests | implemented | `domain/*` | unit (13 test classes; every engine in `domain/` now has at least one) |
+| Release variant builds with shrinking enabled | implemented | `app/proguard-rules.pro`, `assembleRelease` in CI | build-time only, see `docs/TESTING.md` |
+| Release signing without committing a key | implemented | `app/build.gradle.kts` signing config from gradle properties or env | static |
 
 ## 14. Verification
 
@@ -133,6 +141,7 @@ Paths are relative to `app/src/main/java/com/travelbenefits/app/`.
 | Emulator tests in CI (migrations + smoke) | implemented | job `instrumented` | instrumented |
 | Acceptance journey (add card → purchase → ledger → trip → reconcile) as an automated test | **partial**: engine steps covered by unit tests; the end-to-end UI journey is not automated | `docs/TESTING.md` | - |
 | Live-provider verification (Gmail, Anthropic, Plaid, seats.aero) | **blocked** in this environment (no credentials, no device) | - | - |
+| Runtime verification of the minified release APK | **partial**: it builds and shrinks in CI, but no one has installed and exercised it | `docs/TESTING.md` | - |
 
 ## 15. Deliverables
 

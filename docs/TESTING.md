@@ -10,6 +10,7 @@ nothing below was run on a physical phone in this session.
 | Static | Code read and reasoned about | this session | The logic is present and wired |
 | Unit | JVM tests under `app/src/test` | `build` job on every push (`./gradlew testDebugUnitTest`) | Engines are deterministic and produce the specified numbers |
 | Instrumented | Emulator tests under `app/src/androidTest` | `instrumented` job (API 30 x86_64 emulator, KVM) | Migrations work on real SQLite; the app launches and navigates on an empty database |
+| Release build | `./gradlew assembleRelease` | `build` job | R8 shrinking succeeds with the keep rules in `app/proguard-rules.pro`. It does **not** prove the shrunk APK behaves correctly at runtime |
 | Live | Real Gmail / Anthropic / Plaid / seats.aero calls | **not run** (no credentials or device in this environment) | - |
 
 ## Unit test classes (JVM)
@@ -23,6 +24,11 @@ nothing below was run on a physical phone in this session.
 | `StatusAndReconciliationTest` | Status forecasting with tri-state award-stay rules, reconciliation states and claim drafts, trip payment comparison |
 | `StageDTest` | Award result labelling, certificate matching, merchant-offer stacking, preferences round-trip |
 | `StageETest` | Prompt-injection fencing (`PromptGuardTest`), connection status states (`ConnectionStatusCalculatorTest`) |
+| `SyncReportTest` | A failed sync can never reuse the wording of a clean one; partial runs report both what was found and what was missed, and promise a retry |
+| `CategorisationTest` | Plaid category vs merchant-name precedence, non-spend never reclassified by name, shared keyword table, history beats keywords |
+| `CapAndSpendTest` | Cap overrides short-circuit (no duplicate rows), account-year and statement-cycle period starts, misrouted spend, unmapped spend kept separate, pending and refunds excluded, discontinued cards never "best" |
+| `OptimizeAndValueTest` | Ranking order, discontinued cards last, cash-vs-points including forgone earnings, transfer dedupe, earn-plan ordering, annual-fee subtraction, unverified fees left uncounted, only-card forfeiture warning, renewal dates, duplicate benefits, protection checklists |
+| `LoyaltyInsightsTest` | Unknown balances stay unknown, tier progress clamping, expiry precedence and staging, loyalty-number tri-state wording, trip reminders, household naming |
 
 Run locally with an Android SDK installed:
 
@@ -56,6 +62,7 @@ open app/build/reports/androidTests/connected/index.html
 | Stage E (ea260bf) | `build` green (unit tests + APK); `instrumented` failed to compile (androidTest-only errors) |
 | Stage E follow-ups (fe96bdc … 213dc22) | migrations passed on every run; the smoke test exposed, in order: a below-the-fold tap, stale onboarding state cached by the `AppPrefs` singleton, a race with the deferred post-onboarding navigation, and finally a real navigation bug (Home tab ignored when a screen sat directly above the start destination) |
 | Stage E final (b0425a0) | **both jobs green**: 34 unit tests, 5 instrumented tests (3 migration, 2 smoke) on an API 30 emulator; APK published to `debug-latest` |
+| Post-audit fixes (042e0a0) | Four defects fixed, previously untested engines covered, release build added to CI. See "Audit findings" below |
 
 ## Acceptance journey
 
@@ -76,6 +83,33 @@ the path is unit-tested, launch and navigation are emulator-tested, but the
 screens have not been driven through the full sequence by an automated test
 or by a person on a device.
 
+## Audit findings and what they cost
+
+Four defects were found by reading the source after Stage E, all now fixed
+and covered by tests:
+
+1. **A failed sync read as a clean one.** Gmail searches, message fetches and
+   model extraction all swallowed their errors, so "no new travel or loyalty
+   emails" was printed whether the mailbox was empty or unreachable. Fixed by
+   counting each failure class, carrying the cause, and forbidding clean
+   wording on a partial run.
+2. **Failed batches were marked as read.** Emails whose extraction batch
+   errored were still written to the processed-email ledger, which later syncs
+   skip. One transient API error therefore dropped those emails permanently,
+   short of a full re-scan. Fixed by admitting only understood emails to the
+   ledger.
+3. **Merchant names were ignored when categorising Plaid transactions.** The
+   mapper took the name as a parameter and never read it, so anything Plaid
+   filed under a vague bucket became OTHER and under-counted the
+   misrouted-spend headline.
+4. **Two label and branch mistakes**: a nested `let` label made a manual
+   cap override record its figure twice, and the activation caveat never fired
+   for rotating categories.
+
+Three of the four were invisible to the user as errors: they produced
+confident, wrong-but-plausible output. That is the argument for the coverage
+added alongside them.
+
 ## Known limitations
 
 - No testing on a physical phone was performed in this session. The emulator
@@ -90,6 +124,11 @@ or by a person on a device.
 - No live flight status, gate or terminal data.
 - Provenance is complete for 11 cards; other catalog entries are dated as a
   group, not per rule.
+- The release variant is built but never run. CI proves the R8 rules let it
+  compile and shrink; nobody has installed a minified build and exercised it.
+  Reflection-driven paths (Retrofit, kotlinx.serialization, Room, AppAuth)
+  have keep rules, but the first real release install should be smoke-tested
+  by hand.
 - Email extraction quality depends on the model; the app never shows an
   extracted value without its source subject, and users can correct any
   record.

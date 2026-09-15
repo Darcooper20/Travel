@@ -32,9 +32,12 @@ See `docs/REQUIREMENTS_MATRIX.md` (kept in sync with this file).
 - Stage D (award providers, certificates, offers, households, airport mode, protections, preferences): **implemented** - compiled; one ranking test fixed in Stage E. Unit: `StageDTest`.
 - Stage E (onboarding, connection status, prompt hardening, instrumented tests, docs): **implemented** - commits ea260bf … b0425a0. Unit: `StageETest`. Instrumented: `MigrationTest`, `AppSmokeTest` (new `instrumented` CI job). Final CI on b0425a0: build and instrumented jobs both green. The smoke test found and the fix landed for a real bug: the Home tab was ignored whenever a screen sat directly above the start destination (`AppNavHost.navigateTab`).
 
+- Post-audit pass (042e0a0): source audit of the finished app found four defects, all fixed with tests. Three produced confident but wrong output rather than visible errors: a failed sync reported as a clean one, emails silently dropped from future scans after a transient API error, and Plaid spend under-categorised because the merchant name was ignored. Also added release-build verification to CI and replaced glyph-only status indicators. Detail in `docs/TESTING.md` under "Audit findings".
+
 ## 4. Open items (for whoever resumes)
 
 1. Per-rule provenance for the ~75 catalog cards without `RuleProvenance` (mechanical, one issuer page each).
 2. End-to-end UI acceptance journey as an instrumented test (add card → purchase → ledger → trip → reconcile); engines are covered, screens are not driven.
 3. Live verification with real credentials: Gmail extraction quality, seats.aero adapter, Plaid sync on a device.
-4. Live flight status is out of scope until a licensed data source is chosen.
+4. Install and exercise a minified release APK by hand once. CI proves it builds and shrinks; nothing proves it runs.
+5. Live flight status is out of scope until a licensed data source is chosen.

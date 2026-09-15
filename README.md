@@ -348,6 +348,30 @@ is sent solely to `api.anthropic.com` as the `x-api-key` header.
 4. Anything the scan gets wrong can be corrected by tapping the account or
    trip; manual edits win over later scans of older emails.
 
+## Signing your own release build
+
+The debug variant is signed with the checked-in debug keystore so CI builds
+install over each other. For a release build, generate your own key and point
+Gradle at it. Nothing is committed: the path and passwords are read from
+gradle properties or the environment.
+
+```bash
+keytool -genkeypair -v -keystore ~/travel-release.jks -keyalg RSA -keysize 2048   -validity 10000 -alias travel
+```
+
+Then add to `~/.gradle/gradle.properties` (not to the repository):
+
+```properties
+releaseStoreFile=/home/you/travel-release.jks
+releaseStorePassword=...
+releaseKeyAlias=travel
+releaseKeyPassword=...
+```
+
+`./gradlew assembleRelease` then produces a signed, minified APK. Without
+those properties the same command still runs R8 and produces an unsigned
+APK, which is what CI checks.
+
 ## Testing
 
 - `./gradlew testDebugUnitTest` runs the JVM engine tests (ledger maths,
@@ -356,6 +380,10 @@ is sent solely to `api.anthropic.com` as the `x-api-key` header.
 - `./gradlew connectedDebugAndroidTest` runs the emulator tests: Room
   migrations from the original v1 schema to the current version on real
   SQLite, and a launch/navigation smoke test through the setup guide.
+- `./gradlew assembleRelease` builds the shrunk (R8) variant. CI runs it on
+  every push so a missing keep rule in `app/proguard-rules.pro` fails the
+  build rather than crashing on a phone. It builds unsigned unless you
+  configure a key (below).
 - Both run in GitHub Actions on every push (`build` and `instrumented`
   jobs); reports are uploaded as artifacts. See `docs/TESTING.md` for what
   each level proves, and `docs/REQUIREMENTS_MATRIX.md` for the status of
