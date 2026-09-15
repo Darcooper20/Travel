@@ -71,6 +71,7 @@ fun SettingsScreen(
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var notificationPermission by remember { mutableStateOf(viewModel.hasNotificationPermission()) }
+    var advancedOpen by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notificationPermission = granted
@@ -116,6 +117,79 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            item {
+                SectionCard(title = "Connections") {
+                    Text(
+                        "Everything works without any connection: add cards, programs and trips by hand or import a backup. Each connection below is optional and read-only, and can be removed here at any time.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    ConnectionRow("Gmail (read-only)", if (isGmailConnected) "Connected" + (state.gmailAccountEmail?.let { " as $it" } ?: "") else if (state.googleClientId.isBlank()) "Needs a Google OAuth client ID (Advanced configuration)" else "Not connected", isGmailConnected)
+                    ConnectionRow("Anthropic API key", if (state.anthropicApiKey.isNotBlank()) "Saved on this device (encrypted)" else "Not set - email reading, card lookup and the advisor are off", state.anthropicApiKey.isNotBlank())
+                    ConnectionRow("Plaid backend", if (state.plaidBackendUrl.isNotBlank() && state.plaidAppToken.isNotBlank()) "Configured; ${plaid.items.size} institution(s) linked" else "Not configured - spend analysis uses manual entries", state.plaidBackendUrl.isNotBlank() && state.plaidAppToken.isNotBlank())
+                    ConnectionRow("seats.aero award inventory", if (state.seatsAeroKey.isNotBlank()) "Key saved" else "No key - award search uses labelled research leads and imports", state.seatsAeroKey.isNotBlank())
+                    if (isGmailConnected) {
+                        OutlinedButton(onClick = viewModel::disconnectGmail) { Text("Disconnect Gmail") }
+                    } else {
+                        Button(
+                            onClick = { viewModel.buildGmailAuthIntent()?.let(onLaunchGmailAuth) },
+                            enabled = state.googleClientId.isNotBlank(),
+                        ) { Text("Connect Gmail") }
+                    }
+                    TextButton(onClick = { advancedOpen = !advancedOpen }) { Text(if (advancedOpen) "Hide advanced configuration" else "Advanced configuration (keys, OAuth client, Plaid backend)") }
+                }
+            }
+            if (advancedOpen) {
+                item {
+                    SectionCard(title = "Advanced configuration") {
+                        Text(
+                            "Secrets entered here are stored only in Android's encrypted preferences on this device. They are never exported, logged or sent anywhere except the service they belong to.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text("Anthropic API key", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Used to read loyalty details, trips and expiry notices out of scanned emails, to look up cards not in the built-in catalog, and for the points advisor. Get one at console.anthropic.com (pay-as-you-go).",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        OutlinedTextField(
+                            value = state.anthropicApiKey,
+                            onValueChange = viewModel::onAnthropicApiKeyChange,
+                            label = { Text("API key") },
+                            visualTransformation = VisualTransformation.None,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text("Google OAuth client ID", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Required to connect Gmail. Create an \"Android\" OAuth client in Google Cloud Console for this app - see README.md for the exact steps (package name + signing certificate SHA-1).",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        OutlinedTextField(
+                            value = state.googleClientId,
+                            onValueChange = viewModel::onGoogleClientIdChange,
+                            label = { Text("Client ID (ends in .apps.googleusercontent.com)") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text("Plaid backend", style = MaterialTheme.typography.titleSmall)
+                        Text("The tiny worker you host (plaid-backend/README.md). The Plaid client secret stays on the worker, never in this app.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = state.plaidBackendUrl,
+                            onValueChange = viewModel::onPlaidBackendUrlChange,
+                            label = { Text("Backend URL (https://….workers.dev)") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = state.plaidAppToken,
+                            onValueChange = viewModel::onPlaidAppTokenChange,
+                            label = { Text("APP_TOKEN") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text("seats.aero Partner API", style = MaterialTheme.typography.titleSmall)
+                        Text("Requires their Pro subscription. Results are cached inventory with an 'as of' time, labelled as such.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(value = state.seatsAeroKey, onValueChange = viewModel::onSeatsAeroKeyChange, label = { Text("Partner-Authorization key") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
             item {
                 SectionCard(title = "Email monitor") {
                     Text(
@@ -177,19 +251,9 @@ fun SettingsScreen(
                         "Links your card accounts through a tiny backend you host (see plaid-backend/README.md) so the app can see real spend per card and category, judge it against your wallet, and track welcome-bonus progress. Plaid returns transactions, not points balances.",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    OutlinedTextField(
-                        value = state.plaidBackendUrl,
-                        onValueChange = viewModel::onPlaidBackendUrlChange,
-                        label = { Text("Backend URL (https://….workers.dev)") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = state.plaidAppToken,
-                        onValueChange = viewModel::onPlaidAppTokenChange,
-                        label = { Text("APP_TOKEN") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    if (state.plaidBackendUrl.isBlank() || state.plaidAppToken.isBlank()) {
+                        Text("Backend not configured - set the URL and APP_TOKEN under Connections › Advanced configuration.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Button(
                             onClick = { viewModel.startPlaidLink(onLaunchPlaidLink) },
@@ -269,8 +333,8 @@ fun SettingsScreen(
             }
             item {
                 SectionCard(title = "Award data provider (optional)") {
-                    Text("seats.aero Partner API key (requires their Pro subscription). Results are cached inventory, labelled as such. Without a key, award search falls back to AI research leads.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(value = state.seatsAeroKey, onValueChange = viewModel::onSeatsAeroKeyChange, label = { Text("Partner-Authorization key") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                    Text("seats.aero Partner API key (requires their Pro subscription). Results are cached inventory, labelled as such. Without a key, award search falls back to AI research leads and manual imports.", style = MaterialTheme.typography.bodySmall)
+                    Text(if (state.seatsAeroKey.isNotBlank()) "Key saved. Change it under Connections › Advanced configuration." else "No key. Add one under Connections › Advanced configuration.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             item {
@@ -292,63 +356,26 @@ fun SettingsScreen(
                 }
             }
             item {
-                SectionCard(title = "Anthropic API key") {
-                    Text(
-                        "Used to read loyalty details, trips and expiry notices out of scanned emails, to look up cards not in the built-in catalog, and for the points advisor. Get one at console.anthropic.com.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    OutlinedTextField(
-                        value = state.anthropicApiKey,
-                        onValueChange = viewModel::onAnthropicApiKeyChange,
-                        label = { Text("API key") },
-                        visualTransformation = VisualTransformation.None,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            item {
-                SectionCard(title = "Google OAuth client ID") {
-                    Text(
-                        "Required to connect Gmail. Create an \"Android\" OAuth client in Google Cloud Console for this app - see README.md for the exact steps (package name + signing certificate SHA-1).",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    OutlinedTextField(
-                        value = state.googleClientId,
-                        onValueChange = viewModel::onGoogleClientIdChange,
-                        label = { Text("Client ID (ends in .apps.googleusercontent.com)") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            item {
-                SectionCard(title = "Gmail connection") {
-                    if (isGmailConnected) {
-                        Text("Connected" + (state.gmailAccountEmail?.let { " as $it" } ?: "") + ".", style = MaterialTheme.typography.bodyMedium)
-                        OutlinedButton(onClick = viewModel::disconnectGmail) { Text("Disconnect") }
-                    } else {
-                        Text(
-                            "Not connected. This only ever reads mail (read-only scope) - it never sends, deletes, or modifies anything in your inbox.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Button(
-                            onClick = { viewModel.buildGmailAuthIntent()?.let(onLaunchGmailAuth) },
-                            enabled = state.googleClientId.isNotBlank(),
-                        ) {
-                            Text("Connect Gmail")
-                        }
-                    }
-                }
-            }
-            item {
                 SectionCard(title = "About the data") {
                     Text(
                         "Card benefits, tier ladders, expiry rules, transfer ratios and point values are hand-curated snapshots with an \"as of\" date on each entry. " +
                             "They drift; verify anything that matters against the issuer or program before acting. Everything is stored on this device only.",
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    TextButton(onClick = { viewModel.showSetupGuideAgain(); onBack() }) { Text("Show the setup guide again") }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionRow(name: String, detail: String, ok: Boolean) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(if (ok) "●" else "○", color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.padding(start = 8.dp)) {
+            Text(name, style = MaterialTheme.typography.bodyMedium)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

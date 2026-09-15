@@ -22,6 +22,7 @@ import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
+import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
@@ -262,15 +263,15 @@ class EmailMonitorRepository @Inject constructor(
                     append("Received: ").append(formatDate(c.receivedAt)).append('\n')
                     append("From: ").append(c.from).append('\n')
                     c.programHint?.let { append("Program hint: ").append(it.name).append('\n') }
-                    append("Subject: ").append(c.subject).append('\n')
-                    append("Body: ").append(c.body).append('\n')
+                    append("Subject: ").append(PromptGuard.neutralise(c.subject)).append('\n')
+                    append("Body:\n").append(PromptGuard.wrapUntrusted("email ${offset + i} from ${c.from}", c.body)).append('\n')
                 }
             }.joinToString("\n---\n")
 
             val text = runCatching {
                 anthropicClient.sendAndGetFinalText(
                     apiKey = apiKey,
-                    system = EXTRACTION_SYSTEM_PROMPT,
+                    system = PromptGuard.harden(EXTRACTION_SYSTEM_PROMPT),
                     userText = payload,
                     maxTokens = 4096,
                 )

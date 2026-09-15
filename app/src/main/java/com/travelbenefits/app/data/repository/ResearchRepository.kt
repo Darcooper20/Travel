@@ -3,6 +3,7 @@ package com.travelbenefits.app.data.repository
 import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
 import com.travelbenefits.app.data.catalog.TransferPartnerCatalog
 import com.travelbenefits.app.data.local.SecurePrefs
+import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.data.local.dao.AwardWatchDao
 import com.travelbenefits.app.data.local.dao.TransferBonusDao
 import com.travelbenefits.app.data.local.entity.AwardWatchEntity
@@ -84,13 +85,13 @@ class ResearchRepository @Inject constructor(
                 watch.origin?.let { append("Origin: ").append(it).append('\n') }
                 watch.destination?.let { append("Destination / property: ").append(it).append('\n') }
                 if (watch.dateFrom != null || watch.dateTo != null) append("Dates: ").append(watch.dateFrom ?: "?").append(" to ").append(watch.dateTo ?: "?").append('\n')
-                watch.notes?.let { append("Notes: ").append(it).append('\n') }
+                watch.notes?.let { append("Notes:\n").append(PromptGuard.wrapUntrusted("watch notes", it)).append('\n') }
                 append("Today: ").append(LocalDate.now()).append('\n')
             }
             val text = runCatching {
                 anthropicClient.sendAndGetFinalText(
                     apiKey = apiKey,
-                    system = WATCH_SYSTEM_PROMPT,
+                    system = PromptGuard.harden(WATCH_SYSTEM_PROMPT),
                     userText = question,
                     maxTokens = 1500,
                     tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 5)),
@@ -129,7 +130,7 @@ class ResearchRepository @Inject constructor(
         return runCatching {
             val text = anthropicClient.sendAndGetFinalText(
                 apiKey = apiKey,
-                system = BONUS_SYSTEM_PROMPT,
+                system = PromptGuard.harden(BONUS_SYSTEM_PROMPT),
                 userText = userText,
                 maxTokens = 2000,
                 tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 6)),

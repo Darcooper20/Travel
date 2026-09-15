@@ -55,9 +55,14 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
     private val _lastSyncSummary = MutableStateFlow(prefs.getString(KEY_LAST_SYNC_SUMMARY, null))
     val lastSyncSummary: StateFlow<String?> = _lastSyncSummary.asStateFlow()
 
-    var hasSeenOnboarding: Boolean
-        get() = prefs.getBoolean(KEY_ONBOARDED, false)
-        set(value) = prefs.edit().putBoolean(KEY_ONBOARDED, value).apply()
+    private val _onboardingDone = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDED, false))
+    /** False until the user finishes (or skips) the guided setup; Settings can reset it to show the guide again. */
+    val onboardingDone: StateFlow<Boolean> = _onboardingDone.asStateFlow()
+
+    fun setOnboardingDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_ONBOARDED, done).apply()
+        _onboardingDone.value = done
+    }
 
     fun update(transform: (SyncSettings) -> SyncSettings) {
         val next = transform(_syncSettings.value)

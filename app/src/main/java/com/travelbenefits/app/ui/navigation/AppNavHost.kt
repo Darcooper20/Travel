@@ -9,6 +9,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -20,7 +21,11 @@ import androidx.navigation.compose.rememberNavController
 import com.travelbenefits.app.ui.benefits.BenefitsScreen
 import com.travelbenefits.app.ui.dashboard.DashboardScreen
 import com.travelbenefits.app.ui.loyalty.LoyaltyScreen
+import com.travelbenefits.app.ui.onboarding.OnboardingChoice
+import com.travelbenefits.app.ui.onboarding.OnboardingScreen
+import com.travelbenefits.app.ui.onboarding.OnboardingViewModel
 import com.travelbenefits.app.ui.optimize.OptimizeScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.ui.settings.SettingsScreen
 import com.travelbenefits.app.ui.trips.TripsScreen
 import com.travelbenefits.app.ui.wallet.WalletScreen
@@ -28,6 +33,26 @@ import com.travelbenefits.app.ui.wallet.WalletScreen
 @Composable
 fun AppNavHost(onLaunchGmailAuth: (Intent) -> Unit, onLaunchPlaidLink: (String) -> Unit) {
     val navController = rememberNavController()
+    val onboardingViewModel: OnboardingViewModel = hiltViewModel()
+    val onboardingDone by onboardingViewModel.onboardingDone.collectAsState()
+    // Route chosen on the last onboarding step; applied once the NavHost below exists.
+    var postOnboardingRoute by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    if (!onboardingDone) {
+        OnboardingScreen(onFinished = { choice ->
+            postOnboardingRoute = when (choice) {
+                OnboardingChoice.MANUAL -> Screen.Wallet.route
+                OnboardingChoice.IMPORT, OnboardingChoice.CONNECT -> Screen.Settings.route
+                OnboardingChoice.SKIP -> null
+            }
+            onboardingViewModel.finish()
+        })
+        return
+    }
+    androidx.compose.runtime.LaunchedEffect(postOnboardingRoute) {
+        val route = postOnboardingRoute ?: return@LaunchedEffect
+        postOnboardingRoute = null
+        navController.navigate(route) { launchSingleTop = true }
+    }
     val pendingRoute by NavigationRequests.pendingRoute.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pendingRoute) {
         if (pendingRoute == NavigationRequests.OPEN_PURCHASE) {

@@ -137,7 +137,7 @@ class ActionEngine @Inject constructor() {
     fun score(item: ActionItem, today: Long): Int {
         val days = item.deadlineEpochDay?.let { it - today }
         val deadlineScore = when {
-            days == null -> 25.0
+            days == null -> 15.0 // undated work sits below anything due within 90 days; kind boosts lift the exceptions
             days < 0 -> 50.0
             days <= 3 -> 60.0
             days <= 7 -> 50.0

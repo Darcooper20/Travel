@@ -31,7 +31,7 @@ class ResearchAwardProvider @Inject constructor(
         if (apiKey.isNullOrBlank()) return Result.failure(IllegalStateException("Add an Anthropic API key in Settings."))
         return runCatching {
             val text = anthropicClient.sendAndGetFinalText(
-                apiKey = apiKey, system = SYSTEM, maxTokens = 1500,
+                apiKey = apiKey, system = com.travelbenefits.app.domain.PromptGuard.harden(SYSTEM), maxTokens = 1500,
                 userText = "Route: ${request.origin} → ${request.destination}; dates ${request.dateFrom} to ${request.dateTo} (±${request.flexibleDays} days); cabin ${request.cabin.label}; passengers ${request.passengers}" +
                     (request.program?.let { "; program ${it.displayName}" } ?: "") + (request.maxConnections?.let { "; max connections $it" } ?: ""),
                 tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 5)),

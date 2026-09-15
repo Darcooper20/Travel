@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.travelbenefits.app.domain.ConnectionStatusCalculator
+import com.travelbenefits.app.domain.SourceStatus
 import com.travelbenefits.app.domain.model.ActivityEvent
 import com.travelbenefits.app.domain.model.ActivityKind
 import com.travelbenefits.app.domain.model.Alert
@@ -284,33 +286,64 @@ private fun TotalChip(modifier: Modifier, icon: androidx.compose.ui.graphics.vec
 
 @Composable
 private fun SyncCard(state: DashboardUiState, syncState: SyncUiState, onSync: () -> Unit, onOpenSettings: () -> Unit) {
-    SectionCard(title = "Email monitor") {
+    val connection = state.connection
+    SectionCard(title = "Data sources") {
+        if (connection == null) {
+            Text("Checking…", style = MaterialTheme.typography.bodySmall)
+            return@SectionCard
+        }
+        Text(
+            "${connection.programCount} program(s), ${connection.cardCount} card(s), ${connection.upcomingTripCount} upcoming trip(s) on this device.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        connection.sources.forEach { source -> SourceStatusRow(source) }
+        if (connection.staleAccounts.isNotEmpty()) {
+            val names = connection.staleAccounts.take(3).joinToString { it.program.displayName }
+            val more = connection.staleAccounts.size - 3
+            Text(
+                "Stale balances (no update in ${ConnectionStatusCalculator.STALE_AFTER_DAYS}+ days): $names" + (if (more > 0) " and $more more" else "") + ". Values shown may be out of date.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         when {
-            !state.isGmailConnected || !state.hasAnthropicKey -> {
-                Text(
-                    listOfNotNull(
-                        if (!state.isGmailConnected) "Gmail isn't connected" else null,
-                        if (!state.hasAnthropicKey) "no Anthropic API key" else null,
-                    ).joinToString(" and ").replaceFirstChar { it.uppercase() } + ". Both are needed to read loyalty statements and booking confirmations.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = onOpenSettings) { Text("Set up in Settings") }
-            }
             syncState is SyncUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(syncState.message, style = MaterialTheme.typography.bodyMedium)
             }
-            else -> {
-                val last = if (state.lastSyncAt > 0) "Last sync ${formatRelative(state.lastSyncAt)}" else "Never synced"
-                Text(last + if (state.autoSyncEnabled) " • background sync on" else " • background sync off", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                state.lastSyncSummary?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            state.isGmailConnected && state.hasAnthropicKey -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = onSync) {
                     Icon(Icons.Filled.Sync, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Sync now")
                 }
+                TextButton(onClick = onOpenSettings) { Text("Connections") }
             }
+            else -> TextButton(onClick = onOpenSettings) { Text("Set up connections in Settings (optional)") }
+        }
+    }
+}
+
+@Composable
+private fun SourceStatusRow(source: SourceStatus) {
+    val color = when (source.state) {
+        SourceStatus.State.CONNECTED -> MaterialTheme.colorScheme.primary
+        SourceStatus.State.ATTENTION -> MaterialTheme.colorScheme.error
+        SourceStatus.State.OFF -> MaterialTheme.colorScheme.outline
+    }
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            when (source.state) { SourceStatus.State.CONNECTED -> "●"; SourceStatus.State.ATTENTION -> "▲"; SourceStatus.State.OFF -> "○" },
+            color = color,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(source.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(source.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            source.error?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
         }
     }
 }

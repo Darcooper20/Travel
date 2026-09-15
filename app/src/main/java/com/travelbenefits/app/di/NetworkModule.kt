@@ -36,6 +36,11 @@ object NetworkModule {
             // BODY logging would print API keys/OAuth tokens in headers - keep it off
             // even in debug builds; bump to BASIC if you need to see request URLs.
             level = HttpLoggingInterceptor.Level.BASIC
+            // Belt and braces: even if someone raises the level while debugging,
+            // credential headers never reach logcat.
+            redactHeader("x-api-key")
+            redactHeader("Authorization")
+            redactHeader("Partner-Authorization")
         }
         return OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)

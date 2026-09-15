@@ -2,6 +2,7 @@ package com.travelbenefits.app.data.repository
 
 import com.travelbenefits.app.data.catalog.CardCatalog
 import com.travelbenefits.app.data.local.SecurePrefs
+import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.data.local.dao.CardLookupCacheDao
 import com.travelbenefits.app.data.local.entity.CardLookupCacheEntity
 import com.travelbenefits.app.data.remote.anthropic.AnthropicClient
@@ -55,8 +56,8 @@ class CardLookupRepository @Inject constructor(
         return try {
             val text = anthropicClient.sendAndGetFinalText(
                 apiKey = apiKey,
-                system = LOOKUP_SYSTEM_PROMPT,
-                userText = "Credit card: $name",
+                system = PromptGuard.harden(LOOKUP_SYSTEM_PROMPT),
+                userText = "Credit card: " + PromptGuard.neutralise(name),
                 maxTokens = 2048,
                 tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 5)),
             )
@@ -81,8 +82,8 @@ class CardLookupRepository @Inject constructor(
         return runCatching {
             val text = anthropicClient.sendAndGetFinalText(
                 apiKey = apiKey,
-                system = ROTATING_SYSTEM_PROMPT,
-                userText = "Card: $cardName\nQuarter: ${quarterKey.replace("-", " ")}",
+                system = PromptGuard.harden(ROTATING_SYSTEM_PROMPT),
+                userText = "Card: " + PromptGuard.neutralise(cardName) + "\nQuarter: ${quarterKey.replace("-", " ")}",
                 maxTokens = 800,
                 tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 4)),
             )

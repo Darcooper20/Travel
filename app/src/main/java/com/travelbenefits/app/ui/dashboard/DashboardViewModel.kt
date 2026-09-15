@@ -16,6 +16,8 @@ import com.travelbenefits.app.data.repository.TripRepository
 import com.travelbenefits.app.data.repository.WalletRepository
 import com.travelbenefits.app.domain.LoyaltyInsights
 import com.travelbenefits.app.domain.ActionEngine
+import com.travelbenefits.app.domain.ConnectionStatus
+import com.travelbenefits.app.domain.ConnectionStatusCalculator
 import com.travelbenefits.app.domain.model.ActionItem
 import com.travelbenefits.app.domain.model.ActionState
 import com.travelbenefits.app.data.repository.OverrideRepository
@@ -62,6 +64,8 @@ data class DashboardUiState(
     val autoSyncEnabled: Boolean = false,
     val isGmailConnected: Boolean = false,
     val hasAnthropicKey: Boolean = false,
+    val upcomingTripCount: Int = 0,
+    val connection: ConnectionStatus? = null,
 )
 
 sealed class SyncUiState {
@@ -82,6 +86,7 @@ class DashboardViewModel @Inject constructor(
     spendAnalyzer: SpendAnalyzer,
     private val emailMonitorRepository: EmailMonitorRepository,
     private val actionEngine: ActionEngine,
+    private val connectionStatusCalculator: ConnectionStatusCalculator,
     private val overrideRepository: OverrideRepository,
     private val insights: LoyaltyInsights,
     private val appPrefs: AppPrefs,
@@ -131,6 +136,7 @@ class DashboardViewModel @Inject constructor(
             unusedCreditsUsd = credits.filter { it.isAvailable }.sumOf { it.periodValueUsd },
             unusedCreditCount = credits.count { it.isAvailable } + items.count { !it.isUsed },
             upcomingTrips = trips.filter { it.isUpcoming(today) }.sortedBy { it.startEpochDay ?: Long.MAX_VALUE }.take(5),
+            upcomingTripCount = trips.count { it.isUpcoming(today) },
             alerts = insights.alerts(accounts, trips, cards, credits, items),
             activity = activity,
             unreadActivity = unread,
@@ -166,6 +172,22 @@ class DashboardViewModel @Inject constructor(
             autoSyncEnabled = settings.autoSyncEnabled,
             isGmailConnected = gmail,
             hasAnthropicKey = !securePrefs.anthropicApiKey.isNullOrBlank(),
+            connection = connectionStatusCalculator.compute(
+                ConnectionStatusCalculator.Inputs(
+                    gmailConnected = gmail,
+                    hasAnthropicKey = !securePrefs.anthropicApiKey.isNullOrBlank(),
+                    autoSyncEnabled = settings.autoSyncEnabled,
+                    syncIntervalHours = settings.syncIntervalHours,
+                    lastEmailSyncAt = lastSync,
+                    lastEmailSyncSummary = summary,
+                    plaidItems = plaidItems,
+                    hasSeatsAeroKey = !securePrefs.seatsAeroApiKey.isNullOrBlank(),
+                    accounts = accounts,
+                    cards = cards,
+                    upcomingTripCount = state.upcomingTripCount,
+                    now = System.currentTimeMillis(),
+                ),
+            ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
 

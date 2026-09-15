@@ -3,6 +3,7 @@ package com.travelbenefits.app.data.repository
 import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
 import com.travelbenefits.app.data.catalog.TransferPartnerCatalog
 import com.travelbenefits.app.data.local.SecurePrefs
+import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.data.remote.anthropic.AnthropicClient
 import com.travelbenefits.app.data.remote.anthropic.AnthropicTool
 import com.travelbenefits.app.domain.model.LoyaltyAccount
@@ -36,8 +37,8 @@ class PointsAdvisorRepository @Inject constructor(
         return runCatching {
             anthropicClient.sendAndGetFinalText(
                 apiKey = apiKey,
-                system = SYSTEM_PROMPT,
-                userText = "My points and cards:\n$context\n\nQuestion: $question",
+                system = PromptGuard.harden(SYSTEM_PROMPT),
+                userText = "My points and cards (app records, some extracted from email):\n" + PromptGuard.wrapUntrusted("app records", context) + "\n\nQuestion: " + PromptGuard.neutralise(question),
                 maxTokens = 3000,
                 tools = listOf(AnthropicTool(type = "web_search_20260209", name = "web_search", maxUses = 6)),
             )

@@ -222,6 +222,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { overrideRepository.set("currency:${currency.name}", OverrideRepository.KEY_VALUATION, centsPerPoint.trim().toDoubleOrNull()?.toString()) }
     }
 
+    fun showSetupGuideAgain() = appPrefs.setOnboardingDone(false)
+
     fun runRemindersNow() {
         syncScheduler.runRemindersNow()
         _message.value = "Reminder check queued - anything new arrives as a notification."
