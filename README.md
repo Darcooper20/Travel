@@ -141,9 +141,15 @@ every push, so it always has the newest build.
   award-availability API to personal apps, so "Ask" researches with web
   search and the app deep-links to each program's own award search to
   confirm.
-- **Upgrading from the previous version** migrates the local database
-  (v1 -> v4) in place; if anything looks off, clearing the app's storage
-  and re-syncing rebuilds it from Gmail.
+- **Upgrading from any previous version** migrates the local database
+  (v1 -> v9) in place with additive migrations only - there is no
+  destructive fallback, and the migrations are exercised on a real emulator
+  in CI (`MigrationTest`). Amounts the old version never recorded are
+  flagged as unknown rather than invented.
+- **What has and has not been tested** is written down in
+  `docs/TESTING.md`: engines are unit-tested, launch/navigation and
+  migrations are emulator-tested, and nothing has been run against live
+  Gmail, Plaid or seats.aero accounts from this repository's CI.
 
 ## Architecture
 
@@ -294,10 +300,38 @@ your own release keystore) or a different OAuth client, you'll need a new
 Android OAuth client registration (new SHA-1) and, if the client ID's prefix
 changes, a rebuild with the matching `appAuthRedirectScheme`.
 
+## First launch: the setup guide
+
+The app opens with a three-step guide: what it does and never does, how you
+want to start (**add cards and programs by hand**, **import a backup**, or
+**set up optional connections**), and what stays private. Nothing asks for a
+key or login. Every connection is optional and the app is fully usable with
+manual entries only. The guide can be reopened from **Settings → About the
+data → Show the setup guide again**.
+
+Home shows a **Data sources** card with each source's state (connected,
+needs attention, or off), the last sync time, linked institutions and any
+sync error, plus loyalty balances that have not been refreshed for 60+ days.
+
+## Optional connections: what they need and cost
+
+| Connection | What it gives you | What you need | Cost (as of 2026-09-14, verify) |
+|---|---|---|---|
+| Anthropic API key | Email extraction, card lookup for cards not in the catalog, the points advisor, research leads | A key from console.anthropic.com | Pay-as-you-go per token; a sync of 60 emails is typically a few cents |
+| Gmail (read-only) | Balances, status, trips, statements and expiry notices from your inbox | Your own Google Cloud OAuth client (steps below) and the Anthropic key | Free |
+| Plaid | Real spend per card and category, cap usage, welcome-bonus progress | A tiny worker you host (`plaid-backend/`) holding the Plaid secret | Plaid's free development tier covers a small number of linked items; production pricing is per item, see plaid.com/pricing |
+| seats.aero Partner API | Cached award-flight availability with an "as of" time | A Pro subscription key | Paid subscription, see seats.aero |
+
+Keys are entered under **Settings → Connections → Advanced configuration**
+and are stored only in Android's encrypted preferences. They are never
+exported, logged (credential headers are redacted from HTTP logging) or
+compiled into the APK.
+
 ## Setting up the Anthropic API key
 
 1. Get an API key from [console.anthropic.com](https://console.anthropic.com).
-2. In the app, go to **Settings** and paste it into "Anthropic API key".
+2. In the app, go to **Settings → Connections → Advanced configuration**
+   and paste it into "Anthropic API key".
 
 This key is stored encrypted on-device only (Android Keystore-backed) and
 is sent solely to `api.anthropic.com` as the `x-api-key` header.
@@ -314,6 +348,19 @@ is sent solely to `api.anthropic.com` as the `x-api-key` header.
 4. Anything the scan gets wrong can be corrected by tapping the account or
    trip; manual edits win over later scans of older emails.
 
+## Testing
+
+- `./gradlew testDebugUnitTest` runs the JVM engine tests (ledger maths,
+  best-card picker, action ranking, forecasting, reconciliation, award
+  labelling, prompt fencing, connection status).
+- `./gradlew connectedDebugAndroidTest` runs the emulator tests: Room
+  migrations from the original v1 schema to the current version on real
+  SQLite, and a launch/navigation smoke test through the setup guide.
+- Both run in GitHub Actions on every push (`build` and `instrumented`
+  jobs); reports are uploaded as artifacts. See `docs/TESTING.md` for what
+  each level proves, and `docs/REQUIREMENTS_MATRIX.md` for the status of
+  every requirement.
+
 ## Project layout
 
 ```
@@ -328,5 +375,6 @@ app/src/main/java/com/travelbenefits/app/
   domain/          Domain models, loyalty insights (tiers/expiry/alerts), points optimizer
   notifications/   Notification channel + sync-result notifications
   work/            WorkManager worker + scheduler for background sync
-  ui/              Compose screens (dashboard, loyalty, trips, optimize, wallet, settings)
+  ui/              Compose screens (onboarding, dashboard, loyalty, trips, optimize, wallet, settings, benefits, card value, reconcile, airport)
+docs/              Requirement matrix, sources with dates, testing record, completion record
 ```

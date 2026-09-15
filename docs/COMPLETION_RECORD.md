@@ -26,8 +26,15 @@ See `docs/REQUIREMENTS_MATRIX.md` (kept in sync with this file).
 
 ## 3. Stage log
 
-- Stage A (rules, provenance, migrations, ledger): in progress.
-- Stage B: not started.
-- Stage C: not started.
-- Stage D: not started.
-- Stage E: not started.
+- Stage A (rules, provenance, migrations, ledger): **implemented** - commit "Stage A"; CI green after a nullable-receiver fix. Unit: `BenefitLedgerEngineTest`, `ParsingAndMappingTest`.
+- Stage B (purchase-aware best card, actions with states, card value, widget): **implemented** - CI green after two compile fixes. Unit: `PurchaseRecommenderTest`, `ActionEngineTest`.
+- Stage C (trips hub, status forecasting, reconciliation): **implemented** - compiled; six cash-back unit failures fixed in Stage D. Unit: `StatusAndReconciliationTest`.
+- Stage D (award providers, certificates, offers, households, airport mode, protections, preferences): **implemented** - compiled; one ranking test fixed in Stage E. Unit: `StageDTest`.
+- Stage E (onboarding, connection status, prompt hardening, instrumented tests, docs): **implemented** - commit ea260bf plus the docs commit that follows it. Unit: `StageETest`. Instrumented: `MigrationTest`, `AppSmokeTest` (new `instrumented` CI job). CI outcome for these commits is recorded in `docs/TESTING.md` once observed.
+
+## 4. Open items (for whoever resumes)
+
+1. Per-rule provenance for the ~75 catalog cards without `RuleProvenance` (mechanical, one issuer page each).
+2. End-to-end UI acceptance journey as an instrumented test (add card → purchase → ledger → trip → reconcile); engines are covered, screens are not driven.
+3. Live verification with real credentials: Gmail extraction quality, seats.aero adapter, Plaid sync on a device.
+4. Live flight status is out of scope until a licensed data source is chosen.
