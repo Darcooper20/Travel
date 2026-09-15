@@ -237,68 +237,48 @@ and build with `./gradlew assembleRelease`.
 
 ## Setting up Gmail access (Google Cloud OAuth)
 
-Gmail's API requires you to register your own OAuth client - there's no way
-around this for a personal/sideloaded app, and it's free.
+Gmail access needs your own OAuth client. Two things have to line up, and the
+second one catches everybody:
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and
-   create a new project (or reuse one).
-2. **Enable the Gmail API**: APIs & Services → Library → search "Gmail API"
-   → Enable.
-3. **Configure the OAuth consent screen**: APIs & Services → OAuth consent
-   screen.
-   - User type: **External**.
-   - Fill in the required fields (app name, your email).
-   - Scopes: add `.../auth/gmail.readonly`.
-   - **Test users**: add your own Gmail address here.
-   - Leave publishing status as **Testing**. For a personal app used only by
-     you (and up to 99 other test users you add), Google does not require
-     an app-verification review while it stays in Testing - that review
-     process is only needed to move to Production for public/unverified
-     use.
-4. **Create credentials**: APIs & Services → Credentials → Create
-   Credentials → OAuth client ID → Application type **Android**.
-   - Package name: `com.travelbenefits.app.debug` for a debug build (note
-     the `.debug` suffix from `applicationIdSuffix` in `app/build.gradle.kts`),
-     or `com.travelbenefits.app` if you build a release variant without
-     that suffix.
-   - SHA-1 certificate fingerprint: for a debug build, get it from your
-     machine's debug keystore:
+1. **The client must be registered for this exact app.** In Google Cloud
+   Console, create an OAuth client of type **Android** and give it:
+   - **Package name**: `com.travelbenefits.app.debug` for the debug APK
+     published here. Note the `.debug` suffix, which the debug build type adds.
+     A release build would be `com.travelbenefits.app`.
+   - **SHA-1 certificate fingerprint**: for the published debug APK, signed
+     with the checked-in debug keystore, this is
+     `54:58:04:B8:2A:F2:21:6D:A0:7B:C1:ED:04:D2:23:19:F2:59:F5:B0`.
 
+   Settings, Connections, Advanced configuration shows both values read from
+   the build you actually installed, so copy them from there rather than from
+   this page. Getting the client ID wrong produces
+   `Error 401: invalid_client - The OAuth client was not found`.
+
+2. **The app must be built to receive that client's callback.** Google returns
+   the sign-in result to a custom URL scheme that is the reversed client ID:
+   client `123456-abc.apps.googleusercontent.com` calls back on
+   `com.googleusercontent.apps.123456-abc`. Android resolves that scheme from
+   the manifest, which is fixed when the APK is compiled, so **the generic
+   `debug-latest` download cannot complete sign-in for your client**. It carries
+   a placeholder scheme. Everything else in the app works with it.
+
+   To get a build that can:
+
+   - On GitHub, open **Actions**, choose **Build Android APK**, click **Run
+     workflow**, and paste your reversed client ID into
+     `appAuthRedirectScheme`. The APK is published to the **gmail-build**
+     release when it finishes.
+   - Or build locally:
+     ```bash
+     ./gradlew assembleDebug -PappAuthRedirectScheme=com.googleusercontent.apps.123456-abc
      ```
-     keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
-     ```
 
-     Copy the `SHA1:` value. For a release build, run the same command
-     against your own release keystore instead.
-   - Save, then copy the generated **Client ID** (ends in
-     `.apps.googleusercontent.com`).
-5. **Set the redirect scheme and rebuild.** The OAuth redirect has to reach
-   this exact app, which Android does via a custom URI scheme baked into
-   the manifest at build time - it can't be read from something you type in
-   at runtime. Take the numeric/alphanumeric prefix of your Client ID (the
-   part before `.apps.googleusercontent.com`) and reverse the domain:
+   Settings warns you when the installed build and the client ID you entered
+   cannot work together, and names the scheme you need.
 
-   ```
-   Client ID:        123456789-abc123.apps.googleusercontent.com
-   Redirect scheme:  com.googleusercontent.apps.123456789-abc123
-   ```
-
-   Then rebuild passing that as a Gradle property (or add
-   `appAuthRedirectScheme=com.googleusercontent.apps.123456789-abc123` as a
-   line in `gradle.properties` so you don't have to repeat it):
-
-   ```
-   ./gradlew assembleDebug -PappAuthRedirectScheme=com.googleusercontent.apps.123456789-abc123
-   ```
-
-   and install that APK.
-6. In the app, go to **Settings** and paste the full Client ID into "Google
-   OAuth client ID", then tap **Connect Gmail**.
-
-If you ever rebuild with a different signing key (e.g. switch from debug to
-your own release keystore) or a different OAuth client, you'll need a new
-Android OAuth client registration (new SHA-1) and, if the client ID's prefix
-changes, a rebuild with the matching `appAuthRedirectScheme`.
+Also enable the **Gmail API** in the same Google Cloud project, and add your own
+Google account as a test user on the OAuth consent screen while the app is in
+testing. The only scope requested is `gmail.readonly`.
 
 ## First launch: the setup guide
 
