@@ -44,7 +44,7 @@ class MigrationTest {
             "INSERT INTO card_lookup_cache (normalizedName, resultJson, fetchedAtEpochMillis) VALUES ('some card', '{}', 1700000000000)",
         )).close()
 
-        openCurrent().use { db ->
+        openCurrent().using { db ->
             db.query("SELECT program, membershipNumber, tier, pointsBalance, pointsNumeric, memberName FROM loyalty_accounts", null).use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("MARRIOTT_BONVOY", c.getString(0))
@@ -88,7 +88,7 @@ class MigrationTest {
         db.version = 7
         helper.close()
 
-        openCurrent().use { room ->
+        openCurrent().using { room ->
             room.query("SELECT walletCardId, creditLabel, kind, amountCents, epochDay, source, needsConfirmation FROM benefit_ledger", null).use { c ->
                 assertEquals("one ledger row per old checkbox", 1, c.count)
                 assertTrue(c.moveToFirst())
@@ -114,11 +114,14 @@ class MigrationTest {
 
     @Test
     fun freshInstallOpensAtCurrentVersion() {
-        openCurrent().use { db ->
+        openCurrent().using { db ->
             db.query("SELECT COUNT(*) FROM wallet_cards", null).use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)) }
             assertNull(null)
         }
     }
+
+    /** RoomDatabase is not Closeable in Room 2.6, so a small try/finally stand-in for `use`. */
+    private inline fun <T> AppDatabase.using(block: (AppDatabase) -> T): T = try { block(this) } finally { close() }
 
     private fun openCurrent(): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
