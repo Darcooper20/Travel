@@ -69,22 +69,49 @@ class LoyaltyInsightsTest {
     }
 
     @Test
+    fun `with no status yet, the next tier is the first rung of the ladder`() {
+        val program = LoyaltyProgram.entries.first { LoyaltyProgramCatalog.profileFor(it).tiers.isNotEmpty() }
+        val firstRung = LoyaltyProgramCatalog.profileFor(program).tiers.first()
+        val progress = insights.tierProgress(Fixtures.account(program = program, tier = null))
+        assertNull(progress.currentTier)
+        assertEquals(firstRung, progress.nextTier)
+    }
+
+    @Test
     fun `tier progress reports what is left to the next tier and never exceeds full`() {
+        // A program whose SECOND rung has a threshold, with the member sitting on the first.
         val program = LoyaltyProgram.entries.first {
             val p = LoyaltyProgramCatalog.profileFor(it)
             p.tiers.size >= 2 && p.tiers[1].threshold != null
         }
-        val threshold = LoyaltyProgramCatalog.profileFor(program).tiers[1].threshold!!
+        val profile = LoyaltyProgramCatalog.profileFor(program)
+        val currentTierName = profile.tiers[0].name
+        val threshold = profile.tiers[1].threshold!!
 
-        val halfway = insights.tierProgress(Fixtures.account(program = program, qualifyingProgress = threshold / 2))
-        assertNotNull(halfway.nextTier)
+        val halfway = insights.tierProgress(
+            Fixtures.account(program = program, tier = currentTierName, qualifyingProgress = threshold / 2),
+        )
+        assertEquals(profile.tiers[0], halfway.currentTier)
+        assertEquals(profile.tiers[1], halfway.nextTier)
         assertEquals(threshold - threshold / 2, halfway.remaining)
         assertTrue(halfway.fraction!! in 0f..1f)
 
         // Past the threshold: clamped, and nothing remaining rather than a negative number.
-        val overshot = insights.tierProgress(Fixtures.account(program = program, qualifyingProgress = threshold * 3))
+        val overshot = insights.tierProgress(
+            Fixtures.account(program = program, tier = currentTierName, qualifyingProgress = threshold * 3),
+        )
         assertEquals(1f, overshot.fraction!!, 0.0001f)
         assertEquals(0, overshot.remaining)
+    }
+
+    @Test
+    fun `at the top of the ladder there is no next tier to chase`() {
+        val program = LoyaltyProgram.entries.first { LoyaltyProgramCatalog.profileFor(it).tiers.size >= 2 }
+        val top = LoyaltyProgramCatalog.profileFor(program).tiers.last()
+        val progress = insights.tierProgress(Fixtures.account(program = program, tier = top.name, qualifyingProgress = 999_999))
+        assertEquals(top, progress.currentTier)
+        assertNull(progress.nextTier)
+        assertNull(progress.remaining)
     }
 
     // ---- Expiry ----------------------------------------------------------
