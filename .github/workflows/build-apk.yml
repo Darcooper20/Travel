@@ -97,6 +97,19 @@ jobs:
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --no-daemon
 
+      - name: Print instrumented failures into the log
+        if: failure()
+        run: |
+          grep -rl "<failure" app/build/outputs/androidTest-results/connected 2>/dev/null | while read f; do
+            echo "=== $f"; python3 - "$f" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          for tc in ET.parse(sys.argv[1]).getroot().iter("testcase"):
+              for f in tc.findall("failure"):
+                  print(f"--- {tc.get('classname')}.{tc.get('name')}")
+                  print((f.text or "")[:6000])
+          PY
+          done
+
       - name: Upload instrumented test reports
         if: always()
         uses: actions/upload-artifact@v4

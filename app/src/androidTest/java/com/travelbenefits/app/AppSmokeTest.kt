@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.printToString
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -49,11 +51,12 @@ class AppSmokeTest {
     @Test
     fun firstLaunchShowsSetupGuideThenAppNavigates() {
         waitForText(OnboardingText.TITLE_1)
-        compose.onNodeWithText("Next").performClick()
+        // Buttons sit under scrollable content that is taller than a phone screen, so scroll before tapping.
+        compose.onNodeWithText("Next").performScrollTo().performClick()
         waitForText(OnboardingText.TITLE_2)
-        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithText("Next").performScrollTo().performClick()
         waitForText(OnboardingText.TITLE_3)
-        compose.onNodeWithText(OnboardingText.BUTTON_FINISH).performClick()
+        compose.onNodeWithText(OnboardingText.BUTTON_FINISH).performScrollTo().performClick()
 
         // Default choice is manual entry, which opens the Cards tab; then walk every tab.
         waitForTab("Cards")
@@ -71,15 +74,20 @@ class AppSmokeTest {
     @Test
     fun skipSetupGoesStraightToHome() {
         waitForText(OnboardingText.TITLE_1)
-        compose.onNodeWithText(OnboardingText.BUTTON_SKIP).performClick()
+        compose.onNodeWithText(OnboardingText.BUTTON_SKIP).performScrollTo().performClick()
         waitForText("Data sources")
     }
 
-    private fun waitForText(text: String) {
-        compose.waitUntil(timeoutMillis = 15_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
-    }
+    private fun waitForText(text: String) = waitFor("text '$text'") { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
 
-    private fun waitForTab(label: String) {
-        compose.waitUntil(timeoutMillis = 15_000) { compose.onAllNodes(hasText(label) and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitForTab(label: String) = waitFor("tab '$label'") { compose.onAllNodes(hasText(label) and isSelectable()).fetchSemanticsNodes().isNotEmpty() }
+
+    /** waitUntil with the semantics tree in the failure message, so a CI log says what was on screen. */
+    private fun waitFor(what: String, condition: () -> Boolean) {
+        try {
+            compose.waitUntil(timeoutMillis = 15_000, condition = condition)
+        } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Timed out waiting for $what. On screen:\n" + compose.onRoot(useUnmergedTree = false).printToString(maxDepth = 12), e)
+        }
     }
 }
