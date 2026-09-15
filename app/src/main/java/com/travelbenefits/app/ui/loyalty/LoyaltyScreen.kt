@@ -83,7 +83,12 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
         ) {
             if (!isGmailConnected) {
                 item {
-                    CaveatCard("Connect Gmail in Settings and the email monitor will fill this in from your loyalty statements and booking confirmations automatically.")
+                    // The card told people to go to Settings without giving them a way
+                    // there; onOpenSettings was already wired in the nav host but unused.
+                    Column {
+                        CaveatCard("Connect Gmail in Settings and the email monitor will fill this in from your loyalty statements and booking confirmations automatically.")
+                        TextButton(onClick = onOpenSettings) { Text("Open Settings") }
+                    }
                 }
             }
             if (accounts.isEmpty()) {

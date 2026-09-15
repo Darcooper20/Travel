@@ -28,13 +28,16 @@ class CapUsageCalculator @Inject constructor() {
             val mine = transactions.filter { it.walletCardId == id && !it.pending && it.amountUsd > 0 }
             val manual = overrides[id].orEmpty()
             val seen = mutableSetOf<String>()
-            card.entry.categoryRates.filter { it.capUsd != null && it.capPeriod != CapPeriod.NONE }.forEach { rate ->
+            // Explicitly labelled: with two nested forEach loops a bare `return@forEach`
+            // is ambiguous, and that ambiguity is what let a manual override fall through
+            // and record a second row for the same cap.
+            card.entry.categoryRates.filter { it.capUsd != null && it.capPeriod != CapPeriod.NONE }.forEach rates@{ rate ->
                 val key = rate.capGroup ?: rate.category.name
-                if (!seen.add(key)) return@forEach
+                if (!seen.add(key)) return@rates
                 val override = manual[key]
                 if (override != null) {
                     out += CapUsage(id, key, override, "your entry")
-                    return@forEach
+                    return@rates
                 }
                 val start = periodStart(rate.capPeriod, today, card.walletCard.dateOpenedEpochDay)
                 val categories = if (rate.capGroup != null) card.entry.categoryRates.filter { it.capGroup == rate.capGroup }.map { it.category }.toSet() else setOf(rate.category)
