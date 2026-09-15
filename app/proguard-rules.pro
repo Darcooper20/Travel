@@ -67,6 +67,16 @@
 -dontwarn retrofit2.KotlinExtensions
 -dontwarn retrofit2.KotlinExtensions$*
 
+# ---- Compile-only annotations -------------------------------------------
+# Tink (pulled in by androidx.security-crypto for EncryptedSharedPreferences)
+# is compiled against Error Prone's annotations, which have CLASS retention and
+# are deliberately not packaged at runtime. R8 reports them as missing classes
+# and fails the build; they are genuinely unused at runtime, so silence them
+# rather than shipping them. Found by the assembleRelease step in CI.
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn com.google.j2objc.annotations.**
+-dontwarn javax.annotation.concurrent.**
+
 # ---- AppAuth (Gmail OAuth) ----------------------------------------------
 # Parses its own JSON responses reflectively and is reached via an intent filter.
 -keep class net.openid.appauth.** { *; }
