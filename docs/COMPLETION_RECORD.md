@@ -30,7 +30,7 @@ See `docs/REQUIREMENTS_MATRIX.md` (kept in sync with this file).
 - Stage B (purchase-aware best card, actions with states, card value, widget): **implemented** - CI green after two compile fixes. Unit: `PurchaseRecommenderTest`, `ActionEngineTest`.
 - Stage C (trips hub, status forecasting, reconciliation): **implemented** - compiled; six cash-back unit failures fixed in Stage D. Unit: `StatusAndReconciliationTest`.
 - Stage D (award providers, certificates, offers, households, airport mode, protections, preferences): **implemented** - compiled; one ranking test fixed in Stage E. Unit: `StageDTest`.
-- Stage E (onboarding, connection status, prompt hardening, instrumented tests, docs): **implemented** - commit ea260bf plus the docs commit that follows it. Unit: `StageETest`. Instrumented: `MigrationTest`, `AppSmokeTest` (new `instrumented` CI job). CI outcome for these commits is recorded in `docs/TESTING.md` once observed.
+- Stage E (onboarding, connection status, prompt hardening, instrumented tests, docs): **implemented** - commits ea260bf … b0425a0. Unit: `StageETest`. Instrumented: `MigrationTest`, `AppSmokeTest` (new `instrumented` CI job). Final CI on b0425a0: build and instrumented jobs both green. The smoke test found and the fix landed for a real bug: the Home tab was ignored whenever a screen sat directly above the start destination (`AppNavHost.navigateTab`).
 
 ## 4. Open items (for whoever resumes)
 

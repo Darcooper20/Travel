@@ -53,7 +53,9 @@ open app/build/reports/androidTests/connected/index.html
 | Stage B | compile fixes (expression-body return, missing import), then green |
 | Stage C | compiled; 6 `PurchaseRecommenderTest` failures (cash-back units) fixed in Stage D |
 | Stage D | compiled; 1 `ActionEngineTest` failure (undated items outranked dated ones) fixed in Stage E |
-| Stage E | see the Actions tab for the run on the latest commit; `docs/COMPLETION_RECORD.md` records the observed outcome |
+| Stage E (ea260bf) | `build` green (unit tests + APK); `instrumented` failed to compile (androidTest-only errors) |
+| Stage E follow-ups (fe96bdc … 213dc22) | migrations passed on every run; the smoke test exposed, in order: a below-the-fold tap, stale onboarding state cached by the `AppPrefs` singleton, a race with the deferred post-onboarding navigation, and finally a real navigation bug (Home tab ignored when a screen sat directly above the start destination) |
+| Stage E final (b0425a0) | **both jobs green**: 34 unit tests, 5 instrumented tests (3 migration, 2 smoke) on an API 30 emulator; APK published to `debug-latest` |
 
 ## Acceptance journey
 
@@ -76,8 +78,10 @@ or by a person on a device.
 
 ## Known limitations
 
-- No on-device testing was performed in this session; the emulator job is
-  the first time the UI has been exercised at all, so report anything odd.
+- No testing on a physical phone was performed in this session. The emulator
+  job exercises launch, onboarding, every bottom tab and Settings on an empty
+  database; screens with data (cards, trips, ledger entries) have only been
+  exercised through their engines' unit tests, so report anything odd.
 - Anniversary and statement periods are assumed from the card's date opened
   when the issuer page did not state the basis; such credits show "unknown"
   or "anniversary (assumed)" and never a confident date.
