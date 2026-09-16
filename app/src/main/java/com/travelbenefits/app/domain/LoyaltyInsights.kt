@@ -1,6 +1,7 @@
 package com.travelbenefits.app.domain
 
 import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
+import com.travelbenefits.app.data.catalog.TransferPartnerCatalog
 import com.travelbenefits.app.domain.model.Alert
 import com.travelbenefits.app.domain.model.BalanceUnit
 import com.travelbenefits.app.domain.model.BenefitItem
@@ -81,8 +82,35 @@ class LoyaltyInsights @Inject constructor() {
 
     fun portfolioValueUsd(accounts: List<LoyaltyAccount>): Double = accounts.sumOf { estimatedValueUsd(it) ?: 0.0 }
 
-    /** Estimated value of the rewards balances sitting on credit cards. */
+    /** Estimated value of the rewards balances sitting on credit cards, counting every card. */
     fun cardRewardsValueUsd(cards: List<ResolvedWalletCard>): Double = cards.sumOf { it.rewardsValueUsd ?: 0.0 }
+
+    /**
+     * True when this card's balance is the same pot as a loyalty account already
+     * being tracked.
+     *
+     * A co-brand card earns straight into the programme: the "balance" on a
+     * United MileagePlus card IS the MileagePlus balance, not a second store of
+     * miles. Bank currencies (Ultimate Rewards, Membership Rewards, Capital One
+     * miles) are genuinely separate and are never treated this way.
+     */
+    fun isCoBrandDuplicateOf(card: ResolvedWalletCard, accounts: List<LoyaltyAccount>): LoyaltyAccount? {
+        val currency = card.rewardCurrency ?: return null
+        if (card.walletCard.rewardsBalance == null) return null
+        val program = TransferPartnerCatalog.nativeCurrency.entries.firstOrNull { it.value == currency }?.key ?: return null
+        return accounts.firstOrNull { it.program == program && it.pointsNumeric != null }
+    }
+
+    /**
+     * Card balances that are not already counted under a loyalty account.
+     *
+     * Adding a co-brand card's balance on top of its programme's account roughly
+     * doubles that currency in every total. The account wins when both exist,
+     * because it is the programme's own figure; the card still counts on its own
+     * when no account is tracked, so nothing is lost.
+     */
+    fun cardRewardsValueUsd(cards: List<ResolvedWalletCard>, accounts: List<LoyaltyAccount>): Double =
+        cards.filter { isCoBrandDuplicateOf(it, accounts) == null }.sumOf { it.rewardsValueUsd ?: 0.0 }
 
     /** Roughly how many typical award nights the balance covers, using the program's [ProgramProfile.awardBand]. */
     fun awardNightsEstimate(account: LoyaltyAccount): Int? {

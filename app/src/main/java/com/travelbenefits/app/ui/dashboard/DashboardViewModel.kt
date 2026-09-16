@@ -122,7 +122,9 @@ class DashboardViewModel @Inject constructor(
         val (activity, unread) = activityPair
         val (credits, items) = benefitPair
         val today = LocalDate.now().toEpochDay()
-        val cardValue = insights.cardRewardsValueUsd(cards)
+        // Accounts passed in so a co-brand card's balance is not added on top of the
+        // programme account holding the very same miles.
+        val cardValue = insights.cardRewardsValueUsd(cards, accounts)
         DashboardUiState(
             accounts = accounts.map { ProgramSummary(it, insights.balanceLabel(it), insights.estimatedValueUsd(it)) }
                 .sortedByDescending { it.estimatedValueUsd ?: -1.0 },

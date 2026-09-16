@@ -59,6 +59,7 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
     val rotatingState by viewModel.rotatingState.collectAsState()
     val offers by viewModel.offers.collectAsState()
     val offerForm by viewModel.offerForm.collectAsState()
+    val coBrandDuplicates by viewModel.coBrandDuplicateNames.collectAsState()
     var pendingDelete by remember { mutableStateOf<ResolvedWalletCard?>(null) }
 
     Scaffold(
@@ -149,6 +150,7 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
                 items(cards, key = { it.walletCard.id }) { card ->
                     WalletCardRow(
                         card = card,
+                        coBrandDuplicates = coBrandDuplicates,
                         onClick = { viewModel.openEditCard(card) },
                         onDelete = { pendingDelete = card },
                         onRotating = { (card as? ResolvedWalletCard.Catalog)?.let(viewModel::openRotating) },
@@ -235,7 +237,13 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
 }
 
 @Composable
-private fun WalletCardRow(card: ResolvedWalletCard, onClick: () -> Unit, onDelete: () -> Unit, onRotating: () -> Unit) {
+private fun WalletCardRow(
+    card: ResolvedWalletCard,
+    coBrandDuplicates: Map<Long, String>,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onRotating: () -> Unit,
+) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -262,6 +270,15 @@ private fun WalletCardRow(card: ResolvedWalletCard, onClick: () -> Unit, onDelet
                             (card.walletCard.rewardsBalanceAsOf?.let { " • ${com.travelbenefits.app.ui.common.formatRelative(it)}" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    // A co-brand card earns into the programme, so this balance and the
+                    // programme's are one pot. Counted once, under the programme.
+                    coBrandDuplicates[card.walletCard.id]?.let { programName ->
+                        Text(
+                            "These are your $programName miles, not a separate balance. Counted once, under $programName in Loyalty.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 } else {
                     Text("Balance unknown - tap to enter", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

@@ -17,6 +17,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -78,7 +79,22 @@ class WalletViewModel @Inject constructor(
     private val walletRepository: WalletRepository,
     private val cardLookupRepository: CardLookupRepository,
     private val offerRepository: OfferRepository,
+    loyaltyRepository: com.travelbenefits.app.data.repository.LoyaltyRepository,
 ) : ViewModel() {
+
+    private val insights = com.travelbenefits.app.domain.LoyaltyInsights()
+
+    /**
+     * Cards whose rewards balance is the same pot as a loyalty account, so the
+     * screen can say so instead of leaving the user to wonder why the value is
+     * not in the portfolio total twice.
+     */
+    val coBrandDuplicateNames: StateFlow<Map<Long, String>> =
+        combine(walletRepository.observeResolvedCards(), loyaltyRepository.observeAccounts()) { cards, accounts ->
+            cards.mapNotNull { card ->
+                insights.isCoBrandDuplicateOf(card, accounts)?.let { card.walletCard.id to it.programDisplayName }
+            }.toMap()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val offers: StateFlow<List<MerchantOffer>> = offerRepository.observeOffers().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
