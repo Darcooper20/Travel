@@ -5,4 +5,24 @@
       android:theme target and disable the legacy action bar.
     -->
     <style name="Theme.TravelBenefits" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+      AppAuth's RedirectUriReceiverActivity extends AppCompatActivity, and
+      AppCompat refuses to start under a theme that does not descend from
+      Theme.AppCompat. The application theme above is the PLATFORM Material
+      theme, which does not, and our manifest replaces AppAuth's own declaration
+      of that activity, so it inherits the application theme unless told
+      otherwise. The result was that returning from Google sign-in crashed the
+      app with "You need to use a Theme.AppCompat theme (or descendant)".
+
+      Transparent because the activity is an invisible trampoline: it reads the
+      redirect Uri, hands it on, and finishes without drawing anything.
+    -->
+    <style name="Theme.TravelBenefits.Redirect" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

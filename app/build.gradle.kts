@@ -125,6 +125,10 @@ kapt {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // AppAuth's redirect activity is an AppCompatActivity, so Theme.AppCompat has
+    // to resolve. It arrives transitively via AppAuth, but the redirect theme in
+    // themes.xml depends on it, so it is declared rather than assumed.
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
