@@ -276,6 +276,23 @@ second one catches everybody:
    Settings warns you when the installed build and the client ID you entered
    cannot work together, and names the scheme you need.
 
+3. **Custom URI schemes must be switched on for that client.** Google disables
+   them by default for Android clients created now, because a custom scheme can
+   be claimed by another installed app. With the switch off you get
+   `Error 400: invalid_request - Custom URI scheme is not enabled for your
+   Android client`, even though the client ID and the build are both correct.
+
+   Open the Android client in Google Cloud Console, find the **Advanced
+   Settings** section on the client configuration page, and enable the custom
+   URI scheme option, then save. Changes can take a few minutes to apply.
+
+   This app deliberately uses AppAuth rather than Google Identity Services, the
+   alternative Google recommends, because Identity Services requires Google Play
+   Services and the point of a sideloaded build is to keep working without it.
+   That trade is why the switch is needed. If Google eventually removes the
+   switch for Android clients, Gmail scanning here would need rethinking;
+   everything else in the app is unaffected either way.
+
 Also enable the **Gmail API** in the same Google Cloud project, and add your own
 Google account as a test user on the OAuth consent screen while the app is in
 testing. The only scope requested is `gmail.readonly`.

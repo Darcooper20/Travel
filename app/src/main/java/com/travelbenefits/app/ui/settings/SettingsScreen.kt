@@ -195,6 +195,13 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
+                        Text(
+                            "If sign-in fails with \"Custom URI scheme is not enabled for your Android client\", open that client in " +
+                                "Google Cloud Console and enable the custom URI scheme option under Advanced Settings. Google turns it off " +
+                                "by default for new Android clients.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Text("Plaid backend", style = MaterialTheme.typography.titleSmall)
                         Text("The tiny worker you host (plaid-backend/README.md). The Plaid client secret stays on the worker, never in this app.", style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(
