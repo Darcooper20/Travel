@@ -26,9 +26,22 @@ data class WalletCard(
     val memberName: String? = null,
     /** True when this is an authorized-user card (benefits/eligibility differ from the primary cardholder's). null = not set. */
     val isAuthorizedUser: Boolean? = null,
+    /** Where this card came from: the email monitor, or you. */
+    val source: WalletCardSource = WalletCardSource.MANUAL,
+    /** Subject of the statement email that produced an auto-added card. */
+    val sourceEmailSubject: String? = null,
+    /**
+     * True while an auto-added card is unconfirmed. Balances still update, but
+     * it is excluded from recommendations: the product variant behind a
+     * statement email is a guess, and a guessed variant means guessed rates.
+     */
+    val needsConfirmation: Boolean = false,
 )
 
 enum class LoyaltyAccountSource { MANUAL, GMAIL_SCAN }
+
+/** How a wallet card got there. */
+enum class WalletCardSource { MANUAL, EMAIL_SCAN }
 
 data class LoyaltyAccount(
     val id: Long,

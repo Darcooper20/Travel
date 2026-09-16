@@ -1532,6 +1532,46 @@ object CardCatalog {
     /** The terms in force on a given day - past transactions are judged by the rules of their time. */
     fun findByIdOn(id: String, epochDay: Long): CardCatalogEntry? = findById(id)?.versionFor(epochDay)
 
+    /**
+     * The one catalog entry an issuer plus product name can only mean, or null.
+     *
+     * Deliberately strict. Naming a variant wrongly is worse than naming none:
+     * the whole rules engine keys off the entry, so mistaking a Reserve for a
+     * Preferred produces confident, wrong multipliers, caps and credits. When
+     * more than one entry fits, the caller is expected to ask rather than pick.
+     */
+    fun findUnambiguous(issuer: String?, cardName: String?): CardCatalogEntry? {
+        val text = listOfNotNull(issuer, cardName).joinToString(" ").lowercase().trim()
+        if (text.isBlank()) return null
+        val scored = entries.filter { !it.isDiscontinued }.mapNotNull { entry ->
+            // The issuer has to agree, on its first word ("American" for American Express).
+            val issuerWord = entry.issuer.lowercase().substringBefore(" ")
+            if (!text.contains(issuerWord)) return@mapNotNull null
+            // And every distinguishing word of the product name has to be present,
+            // so "Sapphire" alone never resolves while "Sapphire Reserve" does.
+            val words = entry.displayName.lowercase()
+                .split(' ', '-', '®', '/')
+                .filter { it.length > 3 && it !in GENERIC_WORDS && !it.contains(issuerWord) }
+            if (words.isEmpty() || !words.all { text.contains(it) }) return@mapNotNull null
+            entry to words.size
+        }
+        if (scored.isEmpty()) return null
+        // The most specific match wins: "Ink Business Preferred" also satisfies the
+        // shorter "Ink Business Cash" pattern, and the longer one is what was meant.
+        // A tie at the top is genuine ambiguity, so nothing is returned.
+        val best = scored.maxOf { it.second }
+        return scored.filter { it.second == best }.singleOrNull()?.first
+    }
+
+    /**
+     * Words that appear across so many products that matching on them says
+     * nothing about which card an email is talking about.
+     */
+    private val GENERIC_WORDS = setOf(
+        "card", "credit", "visa", "mastercard", "amex", "express", "signature", "infinite",
+        "world", "elite", "rewards", "cash", "back", "business", "bank",
+    )
+
     /** Simple case-insensitive substring search over display name/issuer, for the "add a card" screen. */
     fun search(query: String): List<CardCatalogEntry> {
         if (query.isBlank()) return entries

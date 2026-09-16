@@ -26,4 +26,15 @@ data class WalletCardEntity(
     val memberName: String? = null,
     /** Added in DB v9: true when this card is an authorized-user card on someone else's account. */
     val isAuthorizedUser: Boolean? = null,
+    /** Added in DB v10. "EMAIL_SCAN" when the monitor created this card; null/"MANUAL" when you did. */
+    val source: String? = null,
+    /** Subject of the statement email this card came from, so an auto-added card can be traced back. */
+    val sourceEmailSubject: String? = null,
+    /**
+     * True while an auto-added card has not been confirmed by the user. Such a
+     * card is shown and tracked but kept out of every recommendation, because
+     * its product variant - and therefore its rates, caps and credits - is a
+     * guess until someone says otherwise.
+     */
+    val needsConfirmation: Boolean? = null,
 )

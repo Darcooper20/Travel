@@ -48,6 +48,10 @@ fun WalletCardEntity.toDomain(): WalletCard = WalletCard(
     bonusEarnedAt = bonusEarnedAt,
     memberName = memberName,
     isAuthorizedUser = isAuthorizedUser,
+    source = if (source == "EMAIL_SCAN") com.travelbenefits.app.domain.model.WalletCardSource.EMAIL_SCAN
+    else com.travelbenefits.app.domain.model.WalletCardSource.MANUAL,
+    sourceEmailSubject = sourceEmailSubject,
+    needsConfirmation = needsConfirmation == true,
 )
 
 fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(

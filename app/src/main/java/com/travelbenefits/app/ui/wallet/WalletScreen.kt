@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.CardCatalogEntry
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
+import com.travelbenefits.app.ui.common.SectionCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,10 +88,44 @@ fun WalletScreen(onOpenCardValue: () -> Unit = {}, viewModel: WalletViewModel = 
             ) {
                 item {
                     Text(
-                        "Tap a card to set its rewards balance and last four digits; the email monitor updates balances from issuer statement emails it can match.",
+                        "Tap a card to set its rewards balance and last four digits; the email monitor updates balances from issuer statement emails it can match, and adds cards it finds on statements for you to confirm.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                val unconfirmed = cards.filter { it.walletCard.needsConfirmation }
+                if (unconfirmed.isNotEmpty()) {
+                    item {
+                        SectionCard(title = "Found in your email (${unconfirmed.size})") {
+                            Text(
+                                "These came from statement emails. They are not used for any recommendation until you confirm them, because a statement " +
+                                    "shows that you hold a card without proving which version of it, and the wrong version would mean the wrong rates and caps.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            unconfirmed.forEach { card ->
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Text(card.displayName, style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        listOfNotNull(
+                                            card.walletCard.last4?.let { "ending $it" },
+                                            if (card.walletCard.catalogCardId != null) "matched to a known product" else "product not identified - pick it to get rates",
+                                            card.walletCard.sourceEmailSubject?.let { "from: $it" },
+                                        ).joinToString(" • "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (card.walletCard.catalogCardId != null) {
+                                            Button(onClick = { viewModel.confirmCard(card.walletCard.id) }) { Text("This is mine") }
+                                        } else {
+                                            Button(onClick = { viewModel.openAddCard() }) { Text("Pick the product") }
+                                        }
+                                        TextButton(onClick = { viewModel.removeCard(card.walletCard.id) }) { Text("Not mine") }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

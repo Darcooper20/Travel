@@ -76,7 +76,7 @@ import com.travelbenefits.app.data.local.entity.WalletCardEntity
         MerchantOfferEntity::class,
         MemberEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

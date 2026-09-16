@@ -36,7 +36,10 @@ class PurchaseRecommender @Inject constructor() {
         offers: List<MerchantOffer> = emptyList(),
     ): PurchaseRecommendation {
         val category = query.category ?: SpendingCategory.OTHER
-        val options = cards.mapNotNull { card -> option(card, query, category, capUsage, valuations) }
+        // Same rule as RecommendationEngine: an unconfirmed card has no trustworthy
+        // rate data, so it is left out rather than quoted with invented numbers.
+        val options = cards.filterNot { it.walletCard.needsConfirmation }
+            .mapNotNull { card -> option(card, query, category, capUsage, valuations) }
             .map { opt -> applyOffers(opt, query, offers) }
             .sortedWith(compareByDescending<PurchaseOption> { it.netValueUsd }.thenByDescending { it.confidence.ordinal * -1 })
         val warning = when {

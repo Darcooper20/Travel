@@ -17,8 +17,16 @@ class RecommendationEngine @Inject constructor() {
 
     private val leadingMultiplierRegex = Regex("""(\d+(?:\.\d+)?)\s*[xX%]""")
 
+    /**
+     * Cards awaiting confirmation are excluded rather than ranked. One was added
+     * from a statement email without its product variant being established, so
+     * its rates are unknown; ranking it would put a guess at the top of a list
+     * the user is meant to act on.
+     */
     fun rank(cards: List<ResolvedWalletCard>, category: SpendingCategory): List<RecommendationEntry> =
-        cards.map { toEntry(it, category) }.sortedByDescending { it.estimatedValueCentsPerDollar }
+        cards.filterNot { it.walletCard.needsConfirmation }
+            .map { toEntry(it, category) }
+            .sortedByDescending { it.estimatedValueCentsPerDollar }
 
     private fun toEntry(card: ResolvedWalletCard, category: SpendingCategory): RecommendationEntry = when (card) {
         is ResolvedWalletCard.Catalog -> {

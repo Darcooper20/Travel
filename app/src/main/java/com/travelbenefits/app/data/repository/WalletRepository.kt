@@ -77,6 +77,48 @@ class WalletRepository @Inject constructor(
             ),
         )
 
+    /**
+     * Creates a card the email monitor found on a statement, flagged as needing
+     * confirmation. [catalogId] is set only when the product was identified
+     * beyond doubt; otherwise the card carries the issuer and last four digits
+     * as a placeholder name and no rate data at all, which is honest about what
+     * a statement email actually proves.
+     */
+    suspend fun addCardFromEmail(
+        catalogId: String?,
+        displayName: String,
+        last4: String?,
+        sourceEmailSubject: String?,
+        at: Long,
+    ): Long = walletCardDao.insert(
+        WalletCardEntity(
+            nickname = null,
+            catalogCardId = catalogId,
+            customCardName = if (catalogId == null) displayName else null,
+            dateAdded = at,
+            notes = null,
+            last4 = last4,
+            source = "EMAIL_SCAN",
+            sourceEmailSubject = sourceEmailSubject,
+            needsConfirmation = true,
+        ),
+    )
+
+    /**
+     * Accepts an auto-added card, optionally pinning it to the catalog product
+     * the user picked. After this it counts in recommendations like any other.
+     */
+    suspend fun confirmCard(id: Long, catalogId: String? = null) {
+        val existing = walletCardDao.findById(id) ?: return
+        walletCardDao.update(
+            existing.copy(
+                catalogCardId = catalogId ?: existing.catalogCardId,
+                customCardName = if (catalogId != null) null else existing.customCardName,
+                needsConfirmation = false,
+            ),
+        )
+    }
+
     suspend fun removeCard(id: Long) = walletCardDao.deleteById(id)
 
     /** All wallet cards resolved once (for matching statement emails and building advisor context outside a Flow). */

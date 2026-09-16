@@ -288,5 +288,22 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+    /**
+     * v9 -> v10: provenance and confirmation state on wallet cards, so the email
+     * monitor can add a card it finds without pretending the user vouched for it.
+     * Existing rows stay untouched: a null source reads as MANUAL and a null
+     * needsConfirmation as confirmed, which is exactly what they are.
+     */
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `source` TEXT")
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `sourceEmailSubject` TEXT")
+            db.execSQL("ALTER TABLE `wallet_cards` ADD COLUMN `needsConfirmation` INTEGER")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(
+        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+    )
 }

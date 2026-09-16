@@ -55,12 +55,16 @@ class MigrationTest {
                 assertTrue(c.isNull(5))
                 assertEquals(1, c.count)
             }
-            db.query("SELECT catalogCardId, notes, rewardsBalance, isAuthorizedUser FROM wallet_cards", null).use { c ->
+            db.query("SELECT catalogCardId, notes, rewardsBalance, isAuthorizedUser, source, needsConfirmation FROM wallet_cards", null).use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("chase_sapphire_reserve", c.getString(0))
                 assertEquals("v1 row", c.getString(1))
                 assertTrue(c.isNull(2))
                 assertTrue(c.isNull(3))
+                // v10 provenance columns: a card that predates them was added by hand
+                // and is already confirmed, which is what null means for both.
+                assertTrue("an existing card must not be reported as found in email", c.isNull(4))
+                assertTrue("an existing card must not suddenly need confirming", c.isNull(5))
             }
             db.query("SELECT COUNT(*) FROM card_lookup_cache", null).use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
             assertEquals(AppDatabase_VERSION, db.openHelper.readableDatabase.version)
@@ -156,6 +160,6 @@ class MigrationTest {
 
     private companion object {
         const val DB_NAME = "migration-test.db"
-        const val AppDatabase_VERSION = 9
+        const val AppDatabase_VERSION = 10
     }
 }

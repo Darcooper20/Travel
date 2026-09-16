@@ -271,4 +271,9 @@ class WalletViewModel @Inject constructor(
     fun removeCard(id: Long) {
         viewModelScope.launch { walletRepository.removeCard(id) }
     }
+
+    /** Accepts a card the email monitor added, optionally pinning the product the user picked. */
+    fun confirmCard(id: Long, catalogId: String? = null) {
+        viewModelScope.launch { walletRepository.confirmCard(id, catalogId) }
+    }
 }

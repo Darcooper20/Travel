@@ -23,6 +23,7 @@ import com.travelbenefits.app.domain.model.BenefitKind
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.PromptGuard
+import com.travelbenefits.app.data.catalog.CardCatalog
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
@@ -48,6 +49,8 @@ data class SyncReport(
     val newTrips: Int = 0,
     val expiryWarnings: Int = 0,
     val cardBalanceUpdates: Int = 0,
+    /** Cards created from a statement email, awaiting confirmation. */
+    val cardsAdded: Int = 0,
     val certificatesFound: Int = 0,
     val highlights: List<String> = emptyList(),
     /** Gmail searches that errored. Mail they would have matched was never seen, so "nothing found" would be a lie. */
@@ -59,7 +62,7 @@ data class SyncReport(
     /** First underlying error, shown so the user can act (expired key, no network, quota). */
     val failureReason: String? = null,
 ) {
-    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + certificatesFound
+    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + cardsAdded + certificatesFound
 
     /** True when some part of this run failed, so an empty result does NOT mean "there was nothing". */
     val isPartial: Boolean get() = searchFailures > 0 || fetchFailures > 0 || unreadableEmails > 0
@@ -91,6 +94,7 @@ data class SyncReport(
                 newTrips.takeIf { it > 0 }?.let { "$it new trip(s)" },
                 expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
                 cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
+                cardsAdded.takeIf { it > 0 }?.let { "$it new card(s) to confirm" },
                 certificatesFound.takeIf { it > 0 }?.let { "$it certificate(s)" },
             ).joinToString(", ") + " from $emailsRead email(s)."
         }
@@ -382,6 +386,7 @@ class EmailMonitorRepository @Inject constructor(
     private suspend fun apply(extraction: ExtractionResult, candidates: List<EmailCandidate>, now: Long): SyncReport {
         var certificatesFound = 0
         var cardBalanceUpdates = 0
+        var cardsAdded = 0
         var accountsFound = 0
         var balanceChanges = 0
         var tierChanges = 0
@@ -568,13 +573,23 @@ class EmailMonitorRepository @Inject constructor(
         }
 
         if (extraction.cardRewards.isNotEmpty()) {
-            val wallet = walletRepository.getResolvedCards()
+            var wallet = walletRepository.getResolvedCards()
             val sortedCards = extraction.cardRewards.sortedBy { candidateFor(it.sourceIndex)?.receivedAt ?: 0L }
             for (item in sortedCards) {
                 val balance = item.balance?.toLong() ?: LoyaltyAccount.parsePoints(item.balanceText) ?: continue
                 val candidate = candidateFor(item.sourceIndex)
                 val at = candidate?.receivedAt ?: now
-                val card = matchCard(item, wallet) ?: continue
+                val card = matchCard(item, wallet)
+                    // No card in the wallet is this one. A statement addressed to you is
+                    // evidence you hold the account, so add it rather than dropping what
+                    // was read - but only on strong evidence, and never as a confirmed card.
+                    ?: addCardFromStatement(item, candidate, at)?.also { added ->
+                        cardsAdded++
+                        highlights += "${added.displayName}: added from a statement email, confirm it in Cards"
+                        event(ActivityKind.INFO, null, "New card found: ${added.displayName}", candidate?.subject, at)
+                        wallet = wallet + added
+                    }
+                    ?: continue
                 item.newPurchasesUsd?.toLong()?.takeIf { it > 0 }?.let { purchases ->
                     if (walletRepository.addBonusSpend(card.walletCard.id, purchases, at)) {
                         event(ActivityKind.INFO, null, "${card.displayName}: +$${LoyaltyAccount.formatPoints(purchases)} toward the welcome bonus", candidate?.subject, at)
@@ -601,6 +616,7 @@ class EmailMonitorRepository @Inject constructor(
         return SyncReport(
             emailsRead = candidates.size,
             cardBalanceUpdates = cardBalanceUpdates,
+            cardsAdded = cardsAdded,
             certificatesFound = certificatesFound,
             accountsFound = accountsFound,
             balanceChanges = balanceChanges,
@@ -616,6 +632,44 @@ class EmailMonitorRepository @Inject constructor(
      * outright; otherwise issuer + name words; otherwise the currency, if the
      * wallet holds exactly one card earning it (e.g. one Amex MR card).
      */
+    /**
+     * Adds a card found on a statement, or null when the evidence is too thin.
+     *
+     * The bar is deliberately high. A mention of a card proves nothing on its
+     * own - inboxes are full of offers for cards nobody holds - so this needs
+     * an issuer plus either the last four digits of a real account or a product
+     * name that resolves to exactly one catalog entry. Anything the model
+     * flagged as an advertisement is refused outright.
+     *
+     * The product is pinned to the catalog only when unmistakable. Otherwise
+     * the card exists with no rate data and a name built from what is known,
+     * because a guessed variant would feed wrong multipliers, caps and credits
+     * into every recommendation.
+     */
+    private suspend fun addCardFromStatement(
+        item: ExtractedCardRewards,
+        candidate: EmailCandidate?,
+        at: Long,
+    ): ResolvedWalletCard? {
+        if (item.isAdvertisement == true) return null
+        val issuer = item.issuer?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val last4 = item.last4?.filter { it.isDigit() }?.takeLast(4)?.takeIf { it.length == 4 }
+        val catalogEntry = CardCatalog.findUnambiguous(issuer, item.cardName)
+        if (last4 == null && catalogEntry == null) return null
+
+        val displayName = catalogEntry?.displayName
+            ?: listOfNotNull(issuer, item.cardName?.trim()?.takeIf { it.isNotBlank() }).joinToString(" ")
+                .let { name -> if (last4 != null) "$name ••$last4" else name }
+        val id = walletRepository.addCardFromEmail(
+            catalogId = catalogEntry?.id,
+            displayName = displayName,
+            last4 = last4,
+            sourceEmailSubject = candidate?.subject,
+            at = at,
+        )
+        return walletRepository.getResolvedCards().firstOrNull { it.walletCard.id == id }
+    }
+
     private fun matchCard(item: ExtractedCardRewards, wallet: List<ResolvedWalletCard>): ResolvedWalletCard? {
         val last4 = item.last4?.filter { it.isDigit() }?.takeLast(4)?.takeIf { it.length == 4 }
         if (last4 != null) wallet.firstOrNull { it.walletCard.last4 == last4 }?.let { return it }
@@ -780,7 +834,8 @@ class EmailMonitorRepository @Inject constructor(
                           "currency": one of $currencyNames or null,
                           "balance": number or null (the current rewards balance: points, miles, or whole dollars of cash back),
                           "balanceText": string or null (as written, e.g. "84,210 points" or "$123.45 cash back"),
-                          "newPurchasesUsd": number or null (this statement's new purchases/charges total, whole dollars, if the email states it)
+                          "newPurchasesUsd": number or null (this statement's new purchases/charges total, whole dollars, if the email states it),
+                          "isAdvertisement": true if this email is promoting/offering the card rather than reporting on an account the reader already holds, false if it is a statement or rewards summary for their own account, null if unclear
                         }
                       ]
                     }
@@ -790,7 +845,11 @@ class EmailMonitorRepository @Inject constructor(
                     card, Walmart Cash, Uber Cash, ExtraBucks, Rakuten cash back, DoorDash
                     credits) put the whole-dollar amount in pointsNumeric and the text in
                     pointsBalance. Credit-card statement or rewards-summary emails go in
-                    cardRewards, not loyaltyUpdates.
+                    cardRewards, not loyaltyUpdates. Set "isAdvertisement" honestly: an
+                    offer, pre-approval, or "apply now" email is an advertisement even when
+                    it quotes a rewards rate, while a statement, payment notice or rewards
+                    summary for an existing account is not. The app uses this to decide
+                    whether the reader actually holds the card, so guessing costs them.
                     Rules: include an email in loyaltyUpdates only if it shows account-specific
                     details (a member number, tier/status, or a points/miles balance). Include a
                     trip for any booking/confirmation/itinerary, schedule change or cancellation -
@@ -822,6 +881,8 @@ private data class ExtractedCardRewards(
     val balance: Double? = null,
     val balanceText: String? = null,
     val newPurchasesUsd: Double? = null,
+    /** True when the email is selling the card rather than reporting on one the reader holds. */
+    val isAdvertisement: Boolean? = null,
 )
 
 @Serializable
