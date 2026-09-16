@@ -103,6 +103,14 @@ jobs:
   instrumented:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # 30 is the floor this app still supports; 34 matches a current phone.
+        # Several crash classes only appear on newer API levels (PendingIntent
+        # mutability, notification permission, background restrictions), so
+        # testing one level alone leaves those uncovered.
+        api-level: [30, 34]
     steps:
       - uses: actions/checkout@v4
 
@@ -121,10 +129,10 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Instrumented tests (API 30 emulator)
+      - name: Instrumented tests (API ${{ matrix.api-level }} emulator)
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: ${{ matrix.api-level }}
           arch: x86_64
           target: default
           profile: pixel_5
@@ -149,5 +157,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-test-reports
+          name: instrumented-test-reports-api${{ matrix.api-level }}
           path: app/build/reports/androidTests/connected
