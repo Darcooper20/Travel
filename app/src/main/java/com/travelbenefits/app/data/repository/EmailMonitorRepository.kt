@@ -185,12 +185,16 @@ class EmailMonitorRepository @Inject constructor(
                         .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> refs.putIfAbsent(ref.id, null) }
                 }
-                val programsToScan = LoyaltyProgram.entries.filter { program ->
+                // One Gmail search per programme, so the region filter is what
+                // keeps a catalog spanning five markets from making every sync
+                // five times slower for someone who only has accounts in one.
+                val inScope = LoyaltyProgram.entries.filter { it.region in settings.scanRegions }
+                val programsToScan = inScope.filter { program ->
                     when (program.kind) {
                         LoyaltyProgramKind.HOTEL, LoyaltyProgramKind.AIRLINE -> settings.scanLoyaltyEmails
                         LoyaltyProgramKind.SHOP -> false
                     }
-                } + LoyaltyProgram.entries.filter { it.kind == LoyaltyProgramKind.SHOP && settings.scanShopEmails }
+                } + inScope.filter { it.kind == LoyaltyProgramKind.SHOP && settings.scanShopEmails }
                 // OTHER_REWARDS has no senders of its own; it is what the generic
                 // rewards sweep below resolves to, never something to search for.
                 val searchablePrograms = programsToScan.filter { it.gmailSenderDomains.isNotEmpty() }

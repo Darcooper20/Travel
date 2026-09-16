@@ -2,6 +2,7 @@ package com.travelbenefits.app.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.travelbenefits.app.domain.model.ProgramRegion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,15 @@ data class SyncSettings(
     val scanShopEmails: Boolean = true,
     /** Credit-card issuer statement emails, for rewards balances on wallet cards. */
     val scanCardEmails: Boolean = true,
+    /**
+     * Which markets' loyalty senders the Gmail scan searches. Every region is
+     * on by default because people hold accounts in countries they don't live
+     * in - which is the whole reason the catalog is not US-only. Turning
+     * regions off is purely a speed control: each programme costs one Gmail
+     * search per sync. An empty set searches no programme senders at all
+     * (trip, card and generic-rewards sweeps still run).
+     */
+    val scanRegions: Set<ProgramRegion> = ProgramRegion.entries.toSet(),
     /** Anthropic API spend guard: at most this many emails are read per sync. */
     val maxEmailsPerSync: Int = 60,
     /** Daily local check for expiring points/credits/certificates, bonus deadlines, quarter activations and trip reminders. Needs no network. */
@@ -96,6 +106,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             .putBoolean(KEY_SCAN_TRIPS, next.scanTripEmails)
             .putBoolean(KEY_SCAN_SHOPS, next.scanShopEmails)
             .putBoolean(KEY_SCAN_CARDS, next.scanCardEmails)
+            .putStringSet(KEY_SCAN_REGIONS, next.scanRegions.map { it.name }.toSet())
             .putInt(KEY_MAX_EMAILS, next.maxEmailsPerSync)
             .putBoolean(KEY_DAILY_REMINDERS, next.dailyRemindersEnabled)
             .putBoolean(KEY_RESEARCH, next.researchEnabled)
@@ -125,6 +136,16 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         _lastSyncHadFailures.value = false
     }
 
+    /**
+     * Region names are stored rather than ordinals so that reordering the enum
+     * can't silently re-point a saved choice. A name that no longer exists is
+     * dropped; an absent key means "never chosen", which takes the default.
+     */
+    private fun loadRegions(default: Set<ProgramRegion>): Set<ProgramRegion> {
+        val stored = prefs.getStringSet(KEY_SCAN_REGIONS, null) ?: return default
+        return stored.mapNotNull { name -> ProgramRegion.entries.firstOrNull { it.name == name } }.toSet()
+    }
+
     private fun load(): SyncSettings {
         val defaults = SyncSettings()
         return SyncSettings(
@@ -136,6 +157,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
             scanTripEmails = prefs.getBoolean(KEY_SCAN_TRIPS, defaults.scanTripEmails),
             scanShopEmails = prefs.getBoolean(KEY_SCAN_SHOPS, defaults.scanShopEmails),
             scanCardEmails = prefs.getBoolean(KEY_SCAN_CARDS, defaults.scanCardEmails),
+            scanRegions = loadRegions(defaults.scanRegions),
             maxEmailsPerSync = prefs.getInt(KEY_MAX_EMAILS, defaults.maxEmailsPerSync),
             dailyRemindersEnabled = prefs.getBoolean(KEY_DAILY_REMINDERS, defaults.dailyRemindersEnabled),
             researchEnabled = prefs.getBoolean(KEY_RESEARCH, defaults.researchEnabled),
@@ -154,6 +176,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_SCAN_TRIPS = "scan_trip_emails"
         const val KEY_SCAN_SHOPS = "scan_shop_emails"
         const val KEY_SCAN_CARDS = "scan_card_emails"
+        const val KEY_SCAN_REGIONS = "scan_regions"
         const val KEY_MAX_EMAILS = "max_emails_per_sync"
         const val KEY_DAILY_REMINDERS = "daily_reminders_enabled"
         const val KEY_RESEARCH = "research_enabled"

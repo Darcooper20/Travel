@@ -49,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.travelbenefits.app.domain.model.LoyaltyAccount
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
+import com.travelbenefits.app.domain.model.ProgramRegion
 import com.travelbenefits.app.ui.common.CaveatCard
 import com.travelbenefits.app.ui.common.DropdownPicker
 import com.travelbenefits.app.ui.common.LabelValue
@@ -252,7 +253,13 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
                         Text(band.note, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                if (profile.balanceUnit == com.travelbenefits.app.domain.model.BalanceUnit.POINTS) LabelValue("Est. value per point", "${profile.estValueCentsPerPoint}¢")
+                // No valuation is very different from a valuation of zero, so a
+                // programme the app has no estimate for says nothing here.
+                if (profile.balanceUnit == com.travelbenefits.app.domain.model.BalanceUnit.POINTS) {
+                    val cents = profile.estValueCentsPerPointOrNull
+                    if (cents != null) LabelValue("Est. value per point", "$cents¢")
+                    else LabelValue("Est. value per point", "Not in the app for this programme")
+                }
                 profile.basePointsPerDollar?.let { LabelValue("Base earn", "${it}x per $ with ${account.programDisplayName}") }
                 LabelValue("Expiry rule", profile.expiration.summary)
                 if (profile.tiers.isNotEmpty()) {
@@ -315,10 +322,28 @@ private fun EditAccountDialog(
         title = { Text("Loyalty account") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                // The catch-all for email-discovered programmes is not something to pick by hand.
+                val pickable = remember { LoyaltyProgram.entries.filter { it != LoyaltyProgram.OTHER_REWARDS } }
+                // With programmes from five markets in one list, an unfiltered
+                // dropdown is a long scroll; the region filter starts on the
+                // selected programme's own market so reopening an account lands
+                // where you left it.
+                var regionFilter by remember(state.program) { mutableStateOf<ProgramRegion?>(state.program.region) }
+                DropdownPicker(
+                    label = "Market",
+                    options = listOf<ProgramRegion?>(null) + ProgramRegion.entries,
+                    selected = regionFilter,
+                    optionLabel = { it?.label ?: "All markets" },
+                    onSelected = { regionFilter = it },
+                )
+                val options = pickable.filter { regionFilter == null || it.region == regionFilter }
+                    .ifEmpty { pickable }
                 DropdownPicker(
                     label = "Program",
-                    // The catch-all for email-discovered programmes is not something to pick by hand.
-                    options = LoyaltyProgram.entries.filter { it != LoyaltyProgram.OTHER_REWARDS },
+                    // The selected programme always stays in the list, even when a
+                    // filter would exclude it, so the field can never show a value
+                    // the menu cannot offer back.
+                    options = if (state.program in options) options else listOf(state.program) + options,
                     selected = state.program,
                     optionLabel = { "${it.displayName} (${it.kind.label})" },
                     onSelected = { program -> onChange { it.copy(program = program) } },

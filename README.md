@@ -137,6 +137,20 @@ every push, so it always has the newest build.
   `TransferPartnerCatalog.kt`, each entry dated). Where a threshold couldn't
   be pinned down it's left blank rather than guessed (e.g. Atmos Rewards,
   Radisson Rewards). Programs change these every year or two.
+- **The catalog covers five markets, and covers them unevenly.** Alongside
+  the US programs there are entries for Australia, the UK, Canada and South
+  Africa (Qantas, Velocity, Flybuys, Everyday Rewards; BA Executive Club,
+  Virgin Atlantic, Tesco Clubcard, Nectar, Boots; Aeroplan, WestJet, PC
+  Optimum, Scene+, AIR MILES; SAA Voyager, eBucks, Clicks ClubCard, Smart
+  Shopper, Discovery Vitality). These carry balances, sender domains for the
+  Gmail scan, and expiry rules where those could be checked - but **no tier
+  ladders and no point valuations**. A valuation in this app is denominated
+  in US cents and there is no exchange rate in it, so rather than print a
+  placeholder the app says "not in the app for this programme" and leaves
+  them out of the Earn, Redeem and Transfer calculators. `docs/SOURCES.md`
+  lists what was checked and what wasn't. Settings has a per-market switch
+  for the Gmail scan (each program costs one Gmail search per sync), on for
+  every market by default.
 - **Award search is not live.** No hotel or airline program offers a public
   award-availability API to personal apps, so "Ask" researches with web
   search and the app deep-links to each program's own award search to

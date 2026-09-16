@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.travelbenefits.app.data.catalog.LoyaltyProgramCatalog
 import com.travelbenefits.app.domain.model.CashVsPointsResult
 import com.travelbenefits.app.domain.model.LoyaltyProgram
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
@@ -71,8 +72,24 @@ import com.travelbenefits.app.ui.navigation.NavigationRequests
 
 private val tabs = listOf("Spend", "Earn", "Redeem", "Transfer", "Watch", "Ask")
 
-/** Programs that card points can actually be earned into or transferred to - shops/dining never qualify. */
-private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries.filter { it.kind != LoyaltyProgramKind.SHOP }
+/**
+ * Programs that card points can actually be earned into or transferred to -
+ * shops/dining never qualify, and neither does a programme the app holds no
+ * point valuation for. Every figure on these tabs is priced in cents per
+ * point, so without a valuation there is nothing honest to put on screen.
+ */
+private val travelPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries
+    .filter { it.kind != LoyaltyProgramKind.SHOP }
+    .filter { LoyaltyProgramCatalog.profileFor(it).valuationIsKnown }
+
+/** Same rule for the redeem calculator, which also works in cents per point. */
+private val valuedPrograms: List<LoyaltyProgram> = LoyaltyProgram.entries
+    .filter { LoyaltyProgramCatalog.profileFor(it).valuationIsKnown }
+
+/** Shown wherever a programme is missing from a picker, so its absence isn't a mystery. */
+private const val NO_VALUATION_NOTE =
+    "Programmes the app has no point valuation for (most non-US ones) are left out here - " +
+        "they are still tracked with their balances and expiry rules on the Loyalty tab."
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -346,7 +363,10 @@ private fun RedeemTab(viewModel: OptimizeViewModel) {
             )
         }
         item {
-            DropdownPicker(label = "Program", options = LoyaltyProgram.entries, selected = state.program, optionLabel = { "${it.displayName} (${it.kind.label})" }, onSelected = { p -> viewModel.updateRedeem { it.copy(program = p) } })
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                DropdownPicker(label = "Program", options = valuedPrograms, selected = state.program, optionLabel = { "${it.displayName} (${it.kind.label})" }, onSelected = { p -> viewModel.updateRedeem { it.copy(program = p) } })
+                Text(NO_VALUATION_NOTE, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         item {
             OutlinedTextField(
@@ -458,7 +478,10 @@ private fun TransferTab(viewModel: OptimizeViewModel) {
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
         item {
-            DropdownPicker(label = "Top up which program?", options = travelPrograms, selected = state.program, optionLabel = { it.displayName }, onSelected = viewModel::selectTransferProgram)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                DropdownPicker(label = "Top up which program?", options = travelPrograms, selected = state.program, optionLabel = { it.displayName }, onSelected = viewModel::selectTransferProgram)
+                Text(NO_VALUATION_NOTE, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         item {
             SectionCard(title = state.program.displayName) {

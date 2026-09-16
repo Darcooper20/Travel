@@ -92,6 +92,13 @@ data class ProgramProfile(
         BalanceUnit.DOLLARS -> String.format("$%,d", amount)
     }
 
+    /**
+     * The valuation to show, or null when the app genuinely has none - the
+     * raw [estValueCentsPerPoint] is a placeholder (0.0) in that case, and
+     * printing it would read as "these points are worthless".
+     */
+    val estValueCentsPerPointOrNull: Double? get() = estValueCentsPerPoint.takeIf { valuationIsKnown }
+
     /** Dollar value of [amount] using the estimate (for dollar balances this is the amount itself). */
     fun estimatedValueUsd(amount: Long): Double = amount * estValueCentsPerPoint / 100.0
 

@@ -68,6 +68,46 @@ in Settings, replaces them.
   carries the date of the source it cites and is labelled "research", never
   "available".
 
+## Loyalty programmes outside the United States (checked 2026-09-16)
+
+Australia, the UK, Canada and South Africa were added to the programme
+catalog on this date. Only the expiry rules below could be checked against a
+programme's own terms or a primary write-up of them; everything else about
+these nineteen entries is deliberately absent rather than estimated. In
+particular, none of them carries a tier ladder or a cents-per-point
+valuation: the ladders for several were revised recently, and a valuation in
+the app is denominated in US cents, which would need an exchange rate the app
+does not hold. `valuationIsKnown = false` is set on all of them, so the app
+reports "not in the app for this programme" instead of a zero.
+
+| Programme | Expiry recorded | Source |
+|---|---|---|
+| Qantas Frequent Flyer | 18 months of inactivity | https://www.qantas.com/en-au/frequent-flyer/member-support/points-expiry |
+| Velocity (Virgin Australia) | 24 months of inactivity | https://www.pointhacks.com.au/velocity/points-expiry/ |
+| Flybuys | 12 months of inactivity | https://help.flybuys.com.au/hc/en-gb/articles/9103578419983-Do-my-points-ever-expire |
+| Everyday Rewards | not established | window not confirmed; no countdown shown |
+| British Airways Executive Club (Avios) | 36 months of inactivity | https://www.britishairways.com/travel/execclub/ |
+| Virgin Atlantic Flying Club | no inactivity expiry since 2020 | https://flywith.virginatlantic.com/us/en/flying-club/members/flying-club-news/exciting-changes-to-your-miles.html |
+| Tesco Clubcard | none on the balance; vouchers expire 24 months after issue | https://www.moneysavingexpert.com/news/2026/08/tesco-clubcard-vouchers-expiring/ |
+| Nectar | 12 months of inactivity can close the account | https://www.clearscore.com/learn/credit-cards/tesco-clubcard-sainsburys-nectar-points-warning |
+| Boots Advantage Card | 12 months of inactivity; account closed after four years | https://www.boots.com/shopping/advantage-card/advantage-card-help |
+| Air Canada Aeroplan | 18 months, suspended until 29 November 2026 | https://www.aircanada.com/ca/en/aco/home/aeroplan/news/points-expiry-suspended.html |
+| WestJet Rewards | not established (mid-transition to points) | https://www.westjet.com/en-ca/rewards/terms-conditions |
+| PC Optimum | 12 months of inactivity | https://www.realcanadiansuperstore.ca/en/help/pc-optimum/understanding-pc-optimum-point-expiry-and-redemption-amounts |
+| Scene+ | 24 months of inactivity; credit-card holders exempt | https://www.rewardscanada.ca/expiry.html |
+| AIR MILES (Canada) | account expires after 24 months of inactivity | https://www.airmiles.ca/ |
+| SAA Voyager | calendar-anchored, not a rolling clock; not modelled | https://voyager.flysaa.com/terms-conditions |
+| eBucks (FNB) | no expiry | https://www.ebucks.com/web/eBucks/aboutus/FAQ.jsp |
+| Clicks ClubCard | not established (voucher-based) | https://clicks.co.za/clubcard |
+| Pick n Pay Smart Shopper | not established | https://www.pnp.co.za/smartshopper |
+| Discovery Vitality / Discovery Miles | not established | https://www.discovery.co.za/portal/individual/vitality |
+
+Where the expiry column says "not established", `ExpirationPolicy.inactivityMonths`
+is null and the app draws no countdown; the summary string on screen says why.
+Several of these rows cite a secondary source rather than the programme's own
+terms page, which is why the app labels every one of them as a snapshot to
+verify.
+
 ## Bank transactions
 
 - Plaid: https://plaid.com/docs/ (Transactions product; Link SDK 5.5.1).

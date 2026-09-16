@@ -289,6 +289,27 @@ fun SettingsScreen(
                     ToggleRow(label = "Scan booking confirmations", checked = sync.scanTripEmails, onChange = { on -> viewModel.updateSync { it.copy(scanTripEmails = on) } })
                     ToggleRow(label = "Scan shop & dining rewards emails", checked = sync.scanShopEmails, onChange = { on -> viewModel.updateSync { it.copy(scanShopEmails = on) } })
                     ToggleRow(label = "Scan credit card statements for rewards balances", checked = sync.scanCardEmails, onChange = { on -> viewModel.updateSync { it.copy(scanCardEmails = on) } })
+                    Text(
+                        "Markets to search. Each programme costs one Gmail search per sync, so turning off markets you hold nothing in makes syncs faster. " +
+                            "Turning one off never deletes accounts you already have - it only stops looking for new mail from that market's senders.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    com.travelbenefits.app.domain.model.ProgramRegion.entries.forEach { region ->
+                        val count = com.travelbenefits.app.domain.model.LoyaltyProgram.entries.count {
+                            it.region == region && it.gmailSenderDomains.isNotEmpty()
+                        }
+                        ToggleRow(
+                            label = "${region.label} ($count programmes)",
+                            checked = region in sync.scanRegions,
+                            enabled = sync.scanLoyaltyEmails || sync.scanShopEmails,
+                            onChange = { on ->
+                                viewModel.updateSync {
+                                    it.copy(scanRegions = if (on) it.scanRegions + region else it.scanRegions - region)
+                                }
+                            },
+                        )
+                    }
                     DropdownPicker(
                         label = "First scan looks back",
                         options = listOf(90, 180, 365, 730),

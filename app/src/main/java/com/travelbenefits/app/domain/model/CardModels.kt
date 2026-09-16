@@ -140,6 +140,22 @@ data class TravelPerk(
     }
 }
 
+/**
+ * The market a loyalty programme is run in. GLOBAL is for one programme that
+ * spans every region (the big hotel groups), not a synonym for "American":
+ * a US-only programme is [US]. Used to filter the programme picker and to
+ * keep the Gmail scan from searching senders in countries a member has no
+ * accounts in.
+ */
+enum class ProgramRegion(val label: String) {
+    GLOBAL("Global"),
+    US("United States"),
+    CA("Canada"),
+    UK("United Kingdom"),
+    AU("Australia"),
+    ZA("South Africa"),
+}
+
 enum class LoyaltyProgramKind(val label: String) {
     HOTEL("Hotels"),
     AIRLINE("Airlines"),
@@ -162,6 +178,8 @@ enum class LoyaltyProgram(
     val kind: LoyaltyProgramKind,
     /** Sender domains/keywords used to build a Gmail search query for this program. */
     val gmailSenderDomains: List<String>,
+    /** Which market runs this programme, so the picker and the Gmail scan can be narrowed. */
+    val region: ProgramRegion,
 ) {
     /**
      * Any rewards programme found in email that this catalog does not list.
@@ -170,40 +188,67 @@ enum class LoyaltyProgram(
      * rewards email resolves to. Nothing is known about its tiers, expiry or
      * point value, and the app says so rather than guessing.
      */
-    OTHER_REWARDS("Other rewards programme", LoyaltyProgramKind.SHOP, emptyList()),
-    MARRIOTT_BONVOY("Marriott Bonvoy", LoyaltyProgramKind.HOTEL, listOf("email-marriott.com", "marriott.com", "bonvoy.com")),
-    HILTON_HONORS("Hilton Honors", LoyaltyProgramKind.HOTEL, listOf("hiltonhonors.com", "hilton.com")),
-    WORLD_OF_HYATT("World of Hyatt", LoyaltyProgramKind.HOTEL, listOf("e.hyatt.com", "hyatt.com")),
-    IHG_ONE_REWARDS("IHG One Rewards", LoyaltyProgramKind.HOTEL, listOf("email.ihg.com", "ihg.com")),
-    WYNDHAM_REWARDS("Wyndham Rewards", LoyaltyProgramKind.HOTEL, listOf("wyndhamrewards.com", "wyndham.com")),
-    CHOICE_PRIVILEGES("Choice Privileges", LoyaltyProgramKind.HOTEL, listOf("choicehotels.com")),
-    ACCOR_LIVE_LIMITLESS("Accor Live Limitless", LoyaltyProgramKind.HOTEL, listOf("accor.com", "all.accor.com")),
-    BEST_WESTERN_REWARDS("Best Western Rewards", LoyaltyProgramKind.HOTEL, listOf("bestwestern.com")),
-    RADISSON_REWARDS("Radisson Rewards", LoyaltyProgramKind.HOTEL, listOf("radissonhotels.com")),
-    DELTA_SKYMILES("Delta SkyMiles", LoyaltyProgramKind.AIRLINE, listOf("delta.com", "email.delta.com")),
-    UNITED_MILEAGEPLUS("United MileagePlus", LoyaltyProgramKind.AIRLINE, listOf("united.com", "email.united.com")),
-    SOUTHWEST_RAPID_REWARDS("Southwest Rapid Rewards", LoyaltyProgramKind.AIRLINE, listOf("southwest.com", "luv.southwest.com")),
-    AMERICAN_AADVANTAGE("American Airlines AAdvantage", LoyaltyProgramKind.AIRLINE, listOf("aa.com", "email.aa.com")),
-    ATMOS_REWARDS_AIRLINE("Atmos Rewards (Alaska/Hawaiian)", LoyaltyProgramKind.AIRLINE, listOf("alaskaair.com", "atmosrewards.com", "hawaiianairlines.com")),
-    JETBLUE_TRUEBLUE("JetBlue TrueBlue", LoyaltyProgramKind.AIRLINE, listOf("jetblue.com")),
+    OTHER_REWARDS("Other rewards programme", LoyaltyProgramKind.SHOP, emptyList(), ProgramRegion.GLOBAL),
+    MARRIOTT_BONVOY("Marriott Bonvoy", LoyaltyProgramKind.HOTEL, listOf("email-marriott.com", "marriott.com", "bonvoy.com"), ProgramRegion.GLOBAL),
+    HILTON_HONORS("Hilton Honors", LoyaltyProgramKind.HOTEL, listOf("hiltonhonors.com", "hilton.com"), ProgramRegion.GLOBAL),
+    WORLD_OF_HYATT("World of Hyatt", LoyaltyProgramKind.HOTEL, listOf("e.hyatt.com", "hyatt.com"), ProgramRegion.GLOBAL),
+    IHG_ONE_REWARDS("IHG One Rewards", LoyaltyProgramKind.HOTEL, listOf("email.ihg.com", "ihg.com"), ProgramRegion.GLOBAL),
+    WYNDHAM_REWARDS("Wyndham Rewards", LoyaltyProgramKind.HOTEL, listOf("wyndhamrewards.com", "wyndham.com"), ProgramRegion.GLOBAL),
+    CHOICE_PRIVILEGES("Choice Privileges", LoyaltyProgramKind.HOTEL, listOf("choicehotels.com"), ProgramRegion.GLOBAL),
+    ACCOR_LIVE_LIMITLESS("Accor Live Limitless", LoyaltyProgramKind.HOTEL, listOf("accor.com", "all.accor.com"), ProgramRegion.GLOBAL),
+    BEST_WESTERN_REWARDS("Best Western Rewards", LoyaltyProgramKind.HOTEL, listOf("bestwestern.com"), ProgramRegion.GLOBAL),
+    RADISSON_REWARDS("Radisson Rewards", LoyaltyProgramKind.HOTEL, listOf("radissonhotels.com"), ProgramRegion.GLOBAL),
+    DELTA_SKYMILES("Delta SkyMiles", LoyaltyProgramKind.AIRLINE, listOf("delta.com", "email.delta.com"), ProgramRegion.US),
+    UNITED_MILEAGEPLUS("United MileagePlus", LoyaltyProgramKind.AIRLINE, listOf("united.com", "email.united.com"), ProgramRegion.US),
+    SOUTHWEST_RAPID_REWARDS("Southwest Rapid Rewards", LoyaltyProgramKind.AIRLINE, listOf("southwest.com", "luv.southwest.com"), ProgramRegion.US),
+    AMERICAN_AADVANTAGE("American Airlines AAdvantage", LoyaltyProgramKind.AIRLINE, listOf("aa.com", "email.aa.com"), ProgramRegion.US),
+    ATMOS_REWARDS_AIRLINE("Atmos Rewards (Alaska/Hawaiian)", LoyaltyProgramKind.AIRLINE, listOf("alaskaair.com", "atmosrewards.com", "hawaiianairlines.com"), ProgramRegion.US),
+    JETBLUE_TRUEBLUE("JetBlue TrueBlue", LoyaltyProgramKind.AIRLINE, listOf("jetblue.com"), ProgramRegion.US),
     // Shops, dining and shopping rewards. Sender domains are the transactional/account domains, not ad networks.
-    AMAZON("Amazon (gift card & rewards balance)", LoyaltyProgramKind.SHOP, listOf("amazon.com")),
-    STARBUCKS_REWARDS("Starbucks Rewards", LoyaltyProgramKind.SHOP, listOf("starbucks.com", "e.starbucks.com")),
-    TARGET_CIRCLE("Target Circle", LoyaltyProgramKind.SHOP, listOf("target.com", "e.target.com")),
-    WALMART_REWARDS("Walmart Rewards / Walmart Cash", LoyaltyProgramKind.SHOP, listOf("walmart.com", "email.walmart.com")),
-    COSTCO_REWARDS("Costco Executive / Citi Costco rewards", LoyaltyProgramKind.SHOP, listOf("costco.com", "online.costco.com")),
-    UBER_REWARDS("Uber Cash / Uber One", LoyaltyProgramKind.SHOP, listOf("uber.com")),
-    DOORDASH("DoorDash credits & DashPass", LoyaltyProgramKind.SHOP, listOf("doordash.com")),
-    SEPHORA_BEAUTY_INSIDER("Sephora Beauty Insider", LoyaltyProgramKind.SHOP, listOf("sephora.com")),
-    ULTA_ULTAMATE("Ulta Ultamate Rewards", LoyaltyProgramKind.SHOP, listOf("ulta.com", "e.ulta.com")),
-    CVS_EXTRACARE("CVS ExtraCare", LoyaltyProgramKind.SHOP, listOf("cvs.com")),
-    WALGREENS_MYWALGREENS("myWalgreens", LoyaltyProgramKind.SHOP, listOf("walgreens.com")),
-    KROGER_PLUS("Kroger Plus / fuel points", LoyaltyProgramKind.SHOP, listOf("kroger.com", "ralphs.com", "fredmeyer.com", "kingsoopers.com", "frysfood.com", "smithsfoodanddrug.com")),
-    BEST_BUY("My Best Buy", LoyaltyProgramKind.SHOP, listOf("bestbuy.com", "emailinfo.bestbuy.com")),
-    CHIPOTLE_REWARDS("Chipotle Rewards", LoyaltyProgramKind.SHOP, listOf("chipotle.com")),
-    DUNKIN_REWARDS("Dunkin' Rewards", LoyaltyProgramKind.SHOP, listOf("dunkindonuts.com", "dunkin.com")),
-    PANERA_MYPANERA("MyPanera", LoyaltyProgramKind.SHOP, listOf("panerabread.com")),
-    RAKUTEN("Rakuten cash back", LoyaltyProgramKind.SHOP, listOf("rakuten.com", "mail.rakuten.com")),
+    AMAZON("Amazon (gift card & rewards balance)", LoyaltyProgramKind.SHOP, listOf("amazon.com"), ProgramRegion.US),
+    STARBUCKS_REWARDS("Starbucks Rewards", LoyaltyProgramKind.SHOP, listOf("starbucks.com", "e.starbucks.com"), ProgramRegion.US),
+    TARGET_CIRCLE("Target Circle", LoyaltyProgramKind.SHOP, listOf("target.com", "e.target.com"), ProgramRegion.US),
+    WALMART_REWARDS("Walmart Rewards / Walmart Cash", LoyaltyProgramKind.SHOP, listOf("walmart.com", "email.walmart.com"), ProgramRegion.US),
+    COSTCO_REWARDS("Costco Executive / Citi Costco rewards", LoyaltyProgramKind.SHOP, listOf("costco.com", "online.costco.com"), ProgramRegion.US),
+    UBER_REWARDS("Uber Cash / Uber One", LoyaltyProgramKind.SHOP, listOf("uber.com"), ProgramRegion.US),
+    DOORDASH("DoorDash credits & DashPass", LoyaltyProgramKind.SHOP, listOf("doordash.com"), ProgramRegion.US),
+    SEPHORA_BEAUTY_INSIDER("Sephora Beauty Insider", LoyaltyProgramKind.SHOP, listOf("sephora.com"), ProgramRegion.US),
+    ULTA_ULTAMATE("Ulta Ultamate Rewards", LoyaltyProgramKind.SHOP, listOf("ulta.com", "e.ulta.com"), ProgramRegion.US),
+    CVS_EXTRACARE("CVS ExtraCare", LoyaltyProgramKind.SHOP, listOf("cvs.com"), ProgramRegion.US),
+    WALGREENS_MYWALGREENS("myWalgreens", LoyaltyProgramKind.SHOP, listOf("walgreens.com"), ProgramRegion.US),
+    KROGER_PLUS("Kroger Plus / fuel points", LoyaltyProgramKind.SHOP, listOf("kroger.com", "ralphs.com", "fredmeyer.com", "kingsoopers.com", "frysfood.com", "smithsfoodanddrug.com"), ProgramRegion.US),
+    BEST_BUY("My Best Buy", LoyaltyProgramKind.SHOP, listOf("bestbuy.com", "emailinfo.bestbuy.com"), ProgramRegion.US),
+    CHIPOTLE_REWARDS("Chipotle Rewards", LoyaltyProgramKind.SHOP, listOf("chipotle.com"), ProgramRegion.US),
+    DUNKIN_REWARDS("Dunkin' Rewards", LoyaltyProgramKind.SHOP, listOf("dunkindonuts.com", "dunkin.com"), ProgramRegion.US),
+    PANERA_MYPANERA("MyPanera", LoyaltyProgramKind.SHOP, listOf("panerabread.com"), ProgramRegion.US),
+    RAKUTEN("Rakuten cash back", LoyaltyProgramKind.SHOP, listOf("rakuten.com", "mail.rakuten.com"), ProgramRegion.US),
+
+    // Australia.
+    QANTAS_FREQUENT_FLYER("Qantas Frequent Flyer", LoyaltyProgramKind.AIRLINE, listOf("qantas.com", "qantas.com.au", "qff.qantas.com"), ProgramRegion.AU),
+    VELOCITY_FREQUENT_FLYER("Velocity Frequent Flyer (Virgin Australia)", LoyaltyProgramKind.AIRLINE, listOf("velocityfrequentflyer.com", "virginaustralia.com"), ProgramRegion.AU),
+    EVERYDAY_REWARDS("Everyday Rewards (Woolworths)", LoyaltyProgramKind.SHOP, listOf("everydayrewards.com.au", "woolworths.com.au"), ProgramRegion.AU),
+    FLYBUYS("Flybuys (Coles)", LoyaltyProgramKind.SHOP, listOf("flybuys.com.au", "coles.com.au"), ProgramRegion.AU),
+
+    // United Kingdom.
+    BA_EXECUTIVE_CLUB("British Airways Executive Club (Avios)", LoyaltyProgramKind.AIRLINE, listOf("ba.com", "email.ba.com", "britishairways.com"), ProgramRegion.UK),
+    VIRGIN_ATLANTIC_FLYING_CLUB("Virgin Atlantic Flying Club", LoyaltyProgramKind.AIRLINE, listOf("virginatlantic.com", "flywith.virginatlantic.com"), ProgramRegion.UK),
+    TESCO_CLUBCARD("Tesco Clubcard", LoyaltyProgramKind.SHOP, listOf("tesco.com", "clubcard.tesco.com"), ProgramRegion.UK),
+    NECTAR("Nectar (Sainsbury's)", LoyaltyProgramKind.SHOP, listOf("nectar.com", "sainsburys.co.uk", "argos.co.uk"), ProgramRegion.UK),
+    BOOTS_ADVANTAGE("Boots Advantage Card", LoyaltyProgramKind.SHOP, listOf("boots.com"), ProgramRegion.UK),
+
+    // Canada.
+    AIR_CANADA_AEROPLAN("Air Canada Aeroplan", LoyaltyProgramKind.AIRLINE, listOf("aircanada.ca", "aircanada.com", "aeroplan.com"), ProgramRegion.CA),
+    WESTJET_REWARDS("WestJet Rewards", LoyaltyProgramKind.AIRLINE, listOf("westjet.com"), ProgramRegion.CA),
+    PC_OPTIMUM("PC Optimum", LoyaltyProgramKind.SHOP, listOf("pcoptimum.ca", "pcfinancial.ca", "loblaws.ca", "shoppersdrugmart.ca"), ProgramRegion.CA),
+    SCENE_PLUS("Scene+", LoyaltyProgramKind.SHOP, listOf("sceneplus.ca", "scene.ca"), ProgramRegion.CA),
+    AIR_MILES_CA("AIR MILES (Canada)", LoyaltyProgramKind.SHOP, listOf("airmiles.ca"), ProgramRegion.CA),
+
+    // South Africa.
+    SAA_VOYAGER("SAA Voyager", LoyaltyProgramKind.AIRLINE, listOf("flysaa.com", "voyager.flysaa.com"), ProgramRegion.ZA),
+    FNB_EBUCKS("eBucks (FNB)", LoyaltyProgramKind.SHOP, listOf("ebucks.com", "fnb.co.za"), ProgramRegion.ZA),
+    CLICKS_CLUBCARD("Clicks ClubCard", LoyaltyProgramKind.SHOP, listOf("clicks.co.za"), ProgramRegion.ZA),
+    PICK_N_PAY_SMART_SHOPPER("Pick n Pay Smart Shopper", LoyaltyProgramKind.SHOP, listOf("pnp.co.za", "picknpay.co.za"), ProgramRegion.ZA),
+    DISCOVERY_VITALITY("Discovery Vitality / Discovery Miles", LoyaltyProgramKind.SHOP, listOf("discovery.co.za"), ProgramRegion.ZA),
 }
 
 data class LoyaltyBenefit(
