@@ -65,6 +65,7 @@ open app/build/reports/androidTests/connected/index.html
 | Post-audit fixes (042e0a0 … 0da229b) | **all green**: 111 unit tests, 5 instrumented tests, debug APK and release (R8) APK. Four defects fixed, previously untested engines covered. See "Audit findings" below |
 | Gmail crash + auto-add + uncatalogued programmes (a1c…42316da) | **all green** on both emulator API levels. The AppCompat theme crash on `RedirectUriReceiverActivity` was found from a user's crash report, not from CI, which is why an instrumented test now launches that activity directly |
 | Non-US programmes (2e9a6e7) | **all green**: 152 unit tests, 8 instrumented tests on API 30 and API 34 emulators, debug and release (R8) APKs. 12 new tests cover market coverage, profile completeness, the unvalued-programme path, and the verified expiry windows |
+| Null enum columns (0e6f830) | **all green**: 152 unit tests, 13 instrumented tests on both emulators. Fixed a crash on every completed sync: Room's generated `bind` calls a non-null type converter with no null check of its own, so a nullable enum column threw Kotlin's non-null intrinsic. Found from a device crash report, not from CI - and unfindable from a JVM test, since the defect was in generated code. `NullableEnumColumnTest` now inserts every nullable enum column as null through the real DAOs |
 
 ## Acceptance journey
 
