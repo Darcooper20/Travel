@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.printToString
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -75,6 +76,38 @@ class AppSmokeTest {
         // A detail screen sits above Home; the Home tab must still return there.
         walkTabs("Home")
         waitForText("Data sources")
+    }
+
+    @Test
+    fun survivesRecreationWhileSettingsIsOpen() {
+        // Backgrounding the app during Gmail sign-in hands the foreground to the
+        // browser, and Android is free to tear the activity down and rebuild it.
+        // This covers the rebuild half of that. It cannot simulate the process
+        // being killed outright, which is the other half.
+        waitForText(OnboardingText.TITLE_1)
+        compose.onNodeWithText(OnboardingText.BUTTON_SKIP).performScrollTo().performClick()
+        waitForText("Data sources")
+
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Set up connections in Settings (optional)"))
+        compose.onAllNodes(hasText("Set up connections in Settings (optional)") and hasClickAction()).onFirst().performClick()
+        waitForText("Connections")
+
+        // Opens the section holding the OAuth values, which reads this build's
+        // signing certificate through PackageManager on first composition.
+        compose.onAllNodes(hasScrollAction()).onFirst()
+            .performScrollToNode(hasText("Advanced configuration (keys, OAuth client, Plaid backend)"))
+        compose.onNodeWithText("Advanced configuration (keys, OAuth client, Plaid backend)").performClick()
+        waitForText("Advanced configuration")
+
+        scenario!!.recreate()
+        compose.waitForIdle()
+        waitForText("Connections")
+
+        // A round trip through the stopped state, as backgrounding does.
+        scenario!!.moveToState(Lifecycle.State.CREATED)
+        scenario!!.moveToState(Lifecycle.State.RESUMED)
+        compose.waitForIdle()
+        waitForText("Connections")
     }
 
     @Test
