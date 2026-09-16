@@ -65,6 +65,25 @@ jobs:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
+      # Proves the APK really listens on the requested scheme, rather than
+      # trusting that the Gradle property reached the manifest. Getting this
+      # wrong produces an APK that looks fine and can never finish sign-in,
+      # which is exactly the failure this input exists to avoid.
+      - name: Verify the built APK declares the requested redirect scheme
+        if: inputs.appAuthRedirectScheme != ''
+        run: |
+          set -euo pipefail
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)"
+          echo "Using $AAPT2"
+          MANIFEST="$("$AAPT2" dump xmltree app/build/outputs/apk/debug/app-debug.apk --file AndroidManifest.xml)"
+          if echo "$MANIFEST" | grep -qF '${{ inputs.appAuthRedirectScheme }}'; then
+            echo "OK: the APK declares ${{ inputs.appAuthRedirectScheme }}"
+          else
+            echo "The APK does NOT declare ${{ inputs.appAuthRedirectScheme }}. Schemes found:"
+            echo "$MANIFEST" | grep -i 'scheme' || true
+            exit 1
+          fi
+
       # A build carrying someone's own OAuth scheme is personal to them, so it
       # goes to its own tag instead of replacing the generic download.
       - name: Publish the Gmail-enabled APK to the "gmail-build" release
