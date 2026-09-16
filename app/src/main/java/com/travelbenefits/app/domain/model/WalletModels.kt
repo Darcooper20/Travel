@@ -63,7 +63,18 @@ data class LoyaltyAccount(
     val lastActivityAt: Long? = null,
     /** Household member who holds this account; null = the app's owner. */
     val memberName: String? = null,
+    /**
+     * Real name of a programme the catalog does not list, when [program] is
+     * OTHER_REWARDS. Null for catalogued programmes, which carry their own name.
+     */
+    val customProgramName: String? = null,
 ) {
+    /** What to call this programme on screen: its own name when the catalog has none. */
+    val programDisplayName: String get() = customProgramName?.takeIf { it.isNotBlank() } ?: program.displayName
+
+    /** True when nothing is known about this programme beyond what an email said. */
+    val isUncatalogued: Boolean get() = program == LoyaltyProgram.OTHER_REWARDS
+
     /** Best available balance, preferring the parsed number. */
     val balanceLabel: String?
         get() = pointsNumeric?.let { formatPoints(it) } ?: pointsBalance

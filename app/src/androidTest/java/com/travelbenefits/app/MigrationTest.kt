@@ -45,7 +45,7 @@ class MigrationTest {
         )).close()
 
         openCurrent().using { db ->
-            db.query("SELECT program, membershipNumber, tier, pointsBalance, pointsNumeric, memberName FROM loyalty_accounts", null).use { c ->
+            db.query("SELECT program, membershipNumber, tier, pointsBalance, pointsNumeric, memberName, customProgramName FROM loyalty_accounts", null).use { c ->
                 assertTrue(c.moveToFirst())
                 assertEquals("MARRIOTT_BONVOY", c.getString(0))
                 assertEquals("123456789", c.getString(1))
@@ -53,6 +53,8 @@ class MigrationTest {
                 assertEquals("42,500 points", c.getString(3))
                 assertTrue("columns added later stay NULL, never invented", c.isNull(4))
                 assertTrue(c.isNull(5))
+                // v11: a catalogued programme keeps its own name and needs no override.
+                assertTrue(c.isNull(6))
                 assertEquals(1, c.count)
             }
             db.query("SELECT catalogCardId, notes, rewardsBalance, isAuthorizedUser, source, needsConfirmation FROM wallet_cards", null).use { c ->
@@ -160,6 +162,6 @@ class MigrationTest {
 
     private companion object {
         const val DB_NAME = "migration-test.db"
-        const val AppDatabase_VERSION = 10
+        const val AppDatabase_VERSION = 11
     }
 }

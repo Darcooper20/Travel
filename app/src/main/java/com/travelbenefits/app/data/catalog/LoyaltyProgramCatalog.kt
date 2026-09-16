@@ -576,7 +576,30 @@ object LoyaltyProgramCatalog {
     ).associateBy { it.program }
 
     fun profileFor(program: LoyaltyProgram): ProgramProfile =
-        profiles[program] ?: error("No profile for ${program.name}")
+        profiles[program] ?: unknownProfile(program)
+
+    /**
+     * Stand-in for a programme the catalog does not cover, so one found in email
+     * can be tracked without inventing facts about it. Every field that would
+     * otherwise be a guess is empty: no tier ladder, no expiry rule, no earning
+     * rate, and a valuation explicitly marked unknown so balances are never
+     * priced. Previously this case threw, which meant such programmes could not
+     * exist at all.
+     */
+    private fun unknownProfile(program: LoyaltyProgram): ProgramProfile = ProgramProfile(
+        program = program,
+        qualifyingMetric = QualifyingMetric.QUALIFYING_POINTS,
+        tiers = emptyList(),
+        expiration = ExpirationPolicy(inactivityMonths = null, summary = "Expiry rules for this programme are not in the app - check the programme's own terms."),
+        estValueCentsPerPoint = 0.0,
+        basePointsPerDollar = null,
+        accountUrl = "",
+        awardSearchUrl = "",
+        brandKeywords = emptyList(),
+        dataAsOf = "not in the built-in catalog",
+        notes = "Found in your email. The app has no tier, expiry or valuation data for it, so it shows the balance only.",
+        valuationIsKnown = false,
+    )
 
     /** Program whose brands match a free-text provider/hotel name, if any. Travel programs only by default - a booking never "credits" to a shop. */
     fun programForProvider(providerText: String?, includeShops: Boolean = false): LoyaltyProgram? {

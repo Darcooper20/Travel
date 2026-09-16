@@ -163,6 +163,14 @@ enum class LoyaltyProgram(
     /** Sender domains/keywords used to build a Gmail search query for this program. */
     val gmailSenderDomains: List<String>,
 ) {
+    /**
+     * Any rewards programme found in email that this catalog does not list.
+     * The real name lives on the account as customProgramName. It has no sender
+     * domains, so it is never searched for directly; it is what a generic
+     * rewards email resolves to. Nothing is known about its tiers, expiry or
+     * point value, and the app says so rather than guessing.
+     */
+    OTHER_REWARDS("Other rewards programme", LoyaltyProgramKind.SHOP, emptyList()),
     MARRIOTT_BONVOY("Marriott Bonvoy", LoyaltyProgramKind.HOTEL, listOf("email-marriott.com", "marriott.com", "bonvoy.com")),
     HILTON_HONORS("Hilton Honors", LoyaltyProgramKind.HOTEL, listOf("hiltonhonors.com", "hilton.com")),
     WORLD_OF_HYATT("World of Hyatt", LoyaltyProgramKind.HOTEL, listOf("e.hyatt.com", "hyatt.com")),

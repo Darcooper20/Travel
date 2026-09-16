@@ -60,7 +60,11 @@ class LoyaltyInsights @Inject constructor() {
 
     fun estimatedValueUsd(account: LoyaltyAccount): Double? {
         val points = account.pointsNumeric ?: return null
-        return LoyaltyProgramCatalog.profileFor(account.program).estimatedValueUsd(points)
+        val profile = LoyaltyProgramCatalog.profileFor(account.program)
+        // A programme found in email carries no valuation. Unknown stays unknown
+        // rather than becoming zero, which would quietly understate the portfolio.
+        if (!profile.valuationIsKnown) return null
+        return profile.estimatedValueUsd(points)
     }
 
     /** Balance for display, unit-aware ("42,500" vs "$42"), falling back to the raw text from the email. */
@@ -132,21 +136,21 @@ class LoyaltyInsights @Inject constructor() {
                 when {
                     days < 0 -> alerts += Alert(
                         Alert.Severity.URGENT,
-                        "$who${account.program.displayName} points may have expired",
+                        "$who${account.programDisplayName} points may have expired",
                         "Estimated expiry passed ${-days} day(s) ago. Check the account. " + resetTip(account.program),
                         account.program,
                         notifyKey = "expiry:${account.id}:${expiryDayKey(expiry)}:passed",
                     )
                     days <= EXPIRY_URGENT_DAYS -> alerts += Alert(
                         Alert.Severity.URGENT,
-                        "$who${account.program.displayName} points expire in $days day(s)",
+                        "$who${account.programDisplayName} points expire in $days day(s)",
                         "${profile.expiration.summary} " + resetTip(account.program),
                         account.program,
                         notifyKey = stageKey,
                     )
                     days <= EXPIRY_WARN_DAYS -> alerts += Alert(
                         Alert.Severity.WARNING,
-                        "$who${account.program.displayName} points expire in ~${days / 30} month(s)",
+                        "$who${account.programDisplayName} points expire in ~${days / 30} month(s)",
                         "${profile.expiration.summary} " + resetTip(account.program),
                         account.program,
                         notifyKey = stageKey,
@@ -160,7 +164,7 @@ class LoyaltyInsights @Inject constructor() {
             if (next != null && remaining != null && progress.fraction != null && progress.fraction >= TIER_NUDGE_FRACTION && remaining > 0) {
                 alerts += Alert(
                     Alert.Severity.INFO,
-                    "$remaining ${progress.metric.unit} to ${next.name} with ${account.program.displayName}",
+                    "$remaining ${progress.metric.unit} to ${next.name} with ${account.programDisplayName}",
                     next.perks?.let { "Unlocks: $it" } ?: "Close to the next tier - route the next stay here.",
                     account.program,
                 )
@@ -168,7 +172,7 @@ class LoyaltyInsights @Inject constructor() {
             if (account.membershipNumber.isNullOrBlank()) {
                 alerts += Alert(
                     Alert.Severity.INFO,
-                    "No $who${account.program.displayName} member number saved",
+                    "No $who${account.programDisplayName} member number saved",
                     "Add it so it's on hand when booking, and so the trip check can confirm bookings are earning.",
                     account.program,
                 )

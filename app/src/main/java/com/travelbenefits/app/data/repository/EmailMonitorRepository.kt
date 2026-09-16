@@ -191,6 +191,9 @@ class EmailMonitorRepository @Inject constructor(
                         LoyaltyProgramKind.SHOP -> false
                     }
                 } + LoyaltyProgram.entries.filter { it.kind == LoyaltyProgramKind.SHOP && settings.scanShopEmails }
+                // OTHER_REWARDS has no senders of its own; it is what the generic
+                // rewards sweep below resolves to, never something to search for.
+                val searchablePrograms = programsToScan.filter { it.gmailSenderDomains.isNotEmpty() }
                 val cardRefs = mutableListOf<String>()
                 if (settings.scanCardEmails) {
                     val senders = CARD_ISSUER_DOMAINS.joinToString(" OR ") { "from:$it" }
@@ -199,7 +202,7 @@ class EmailMonitorRepository @Inject constructor(
                         .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> cardRefs += ref.id }
                 }
-                for (program in programsToScan) {
+                for (program in searchablePrograms) {
                     if (program.kind == LoyaltyProgramKind.SHOP && cardRefs.isNotEmpty()) {
                         // Card statements slot in ahead of the first shop program.
                         cardRefs.forEach { refs.putIfAbsent(it, null) }
@@ -217,6 +220,18 @@ class EmailMonitorRepository @Inject constructor(
                     list.messages.forEach { ref -> refs.putIfAbsent(ref.id, program) }
                 }
                 cardRefs.forEach { refs.putIfAbsent(it, null) }
+
+                // Everything above searches senders this app already knows. A rewards
+                // programme the catalog has never heard of has no known sender, so it
+                // could not be found at all. This sweep looks for the shape of a
+                // rewards email instead of who sent it, which is the only way to
+                // discover programmes outside the built-in list.
+                if (settings.scanLoyaltyEmails || settings.scanShopEmails) {
+                    val generic = "$REWARDS_SUBJECT_TERMS -category:promotions after:$afterEpochSeconds"
+                    runCatching { gmailApi.listMessages(bearer, generic, maxResults = MESSAGES_FOR_GENERIC_REWARDS) }
+                        .onFailure { searchFailures++; noteFailure(it) }
+                        .getOrNull()?.messages?.forEach { ref -> refs.putIfAbsent(ref.id, null) }
+                }
 
                 val already = if (refs.isEmpty()) emptySet() else processedEmailDao.findExisting(refs.keys.toList()).toSet()
                 val toRead = refs.keys.filterNot { it in already }.take(settings.maxEmailsPerSync)
@@ -399,13 +414,27 @@ class EmailMonitorRepository @Inject constructor(
         // Oldest first so a stale statement never overwrites a newer one within the same batch.
         val loyaltySorted = extraction.loyaltyUpdates.sortedBy { candidateFor(it.sourceIndex)?.receivedAt ?: 0L }
         for (item in loyaltySorted) {
-            val program = parseProgram(item.program) ?: continue
+            // A programme the catalog lists, or - failing that - whatever the email
+            // called it. Dropping the second case is what confined the app to its
+            // own 32 programmes no matter what was in the mailbox.
+            // OTHER_REWARDS is in the enum, so parseProgram matches it. Treated as
+            // unknown on purpose: otherwise every uncatalogued programme would
+            // dedupe onto one shared account.
+            val known = parseProgram(item.program)?.takeIf { it != LoyaltyProgram.OTHER_REWARDS }
+            val customName = item.programName?.trim()?.takeIf { it.isNotBlank() && it.length <= 60 }
+            val program = known ?: customName?.let { LoyaltyProgram.OTHER_REWARDS } ?: continue
             val numeric = item.pointsNumeric?.toLong() ?: LoyaltyAccount.parsePoints(item.pointsBalance)
             if (item.membershipNumber == null && item.tier == null && numeric == null && item.pointsBalance == null && item.qualifyingProgress == null) continue
 
             val candidate = candidateFor(item.sourceIndex)
             val emailAt = candidate?.receivedAt ?: now
-            val existing = loyaltyAccountDao.findByProgram(program)
+            val existing = if (known != null) {
+                loyaltyAccountDao.findByProgram(program)
+            } else {
+                // Uncatalogued programmes all share one enum value, so the name is
+                // the only thing telling two of them apart.
+                loyaltyAccountDao.findByCustomProgramName(customName!!)
+            }
             if (existing?.lastActivityAt != null && emailAt < existing.lastActivityAt) {
                 // Older than what we already know - only fill gaps, never regress.
                 if (existing.membershipNumber == null && item.membershipNumber != null) {
@@ -429,13 +458,15 @@ class EmailMonitorRepository @Inject constructor(
                 pointsExpireAt = expireAt,
                 qualifyingProgress = item.qualifyingProgress?.toInt() ?: existing?.qualifyingProgress,
                 lastActivityAt = emailAt,
+                customProgramName = customName ?: existing?.customProgramName,
             )
             loyaltyAccountDao.insert(entity)
 
+            val label = entity.customProgramName?.takeIf { it.isNotBlank() } ?: program.displayName
             if (existing == null) {
                 accountsFound++
-                highlights += "${program.displayName} membership found"
-                event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} membership found", describe(entity), emailAt)
+                highlights += "$label membership found"
+                event(ActivityKind.ACCOUNT_FOUND, program, "$label membership found", describe(entity), emailAt)
             }
             if (numeric != null) {
                 val latest = pointsSnapshotDao.latestForProgram(program)
@@ -752,6 +783,9 @@ class EmailMonitorRepository @Inject constructor(
             "chase.com", "americanexpress.com", "aexp.com", "capitalone.com", "citi.com", "citibank.com", "wellsfargo.com",
             "bankofamerica.com", "discover.com", "usbank.com", "barclaycardus.com", "barclays.com", "bilt.com", "biltrewards.com", "synchrony.com",
         )
+        /** Modest: this sweep is unanchored, so it must not crowd out the targeted searches under the per-sync cap. */
+        private const val MESSAGES_FOR_GENERIC_REWARDS = 15
+
         private const val CARD_SUBJECT_TERMS =
             "subject:(statement OR \"rewards summary\" OR \"points balance\" OR \"miles balance\" OR \"your rewards\" OR \"cash back\" OR \"Ultimate Rewards\" OR \"Membership Rewards\" OR \"ThankYou\")"
         private const val BATCH_SIZE = 6
@@ -764,6 +798,16 @@ class EmailMonitorRepository @Inject constructor(
             "amextravel.com", "chase.com", "capitalone.com", "amtrak.com", "hertz.com", "avis.com", "enterprise.com",
             "nationalcar.com", "sixt.com", "budget.com", "turo.com", "google.com",
         )
+
+        /**
+         * The shape of a balance/statement email, independent of sender. Kept
+         * narrow and paired with -category:promotions, because this query is not
+         * anchored to a known brand and would otherwise pull in marketing.
+         */
+        private const val REWARDS_SUBJECT_TERMS =
+            "subject:(\"points balance\" OR \"your points\" OR \"rewards balance\" OR \"your rewards\" OR \"rewards summary\" OR " +
+                "\"miles balance\" OR \"your miles\" OR \"points statement\" OR \"account summary\" OR \"membership statement\" OR " +
+                "\"loyalty statement\" OR \"points expiring\" OR \"points will expire\")"
 
         private const val TRIP_SUBJECT_TERMS =
             "subject:(confirmation OR confirmed OR itinerary OR reservation OR \"booking\" OR \"e-ticket\" OR eticket OR \"your trip\" OR \"your stay\" OR \"your upcoming\")"
@@ -782,7 +826,8 @@ class EmailMonitorRepository @Inject constructor(
                       "loyaltyUpdates": [
                         {
                           "sourceIndex": N (the Email number),
-                          "program": one of $programNames,
+                          "program": one of $programNames, or "OTHER_REWARDS" for any loyalty or rewards programme not in that list,
+                          "programName": the programme's own name exactly as the email gives it (e.g. "Panera MyPanera Rewards", "IKEA Family"). REQUIRED when program is "OTHER_REWARDS"; null otherwise,
                           "membershipNumber": string or null,
                           "tier": string or null (e.g. "Gold", "Platinum Elite", "Medallion Silver", "Premier 1K"),
                           "pointsBalance": string or null (as written, e.g. "42,500 points"),
@@ -851,7 +896,13 @@ class EmailMonitorRepository @Inject constructor(
                     summary for an existing account is not. The app uses this to decide
                     whether the reader actually holds the card, so guessing costs them.
                     Rules: include an email in loyaltyUpdates only if it shows account-specific
-                    details (a member number, tier/status, or a points/miles balance). Include a
+                    details (a member number, tier/status, or a points/miles balance). This
+                    applies to ANY loyalty or rewards programme, not only the ones listed
+                    above: a supermarket, pharmacy, cinema, gym, rail operator or airline
+                    that is not in the list still counts - use "OTHER_REWARDS" and give its
+                    real name in "programName". Do NOT use OTHER_REWARDS for a programme
+                    that IS in the list, and do not invent a programme from a marketing
+                    email that shows no balance or member number of the reader's own. Include a
                     trip for any booking/confirmation/itinerary, schedule change or cancellation -
                     not marketing, price alerts, or searches. Cancellations are important: report
                     them with status CANCELLED and the same confirmation number. Never invent
@@ -888,6 +939,8 @@ private data class ExtractedCardRewards(
 @Serializable
 private data class ExtractedLoyalty(
     val sourceIndex: Int? = null,
+    /** The programme's own name, used when it is not one of the codes the app knows. */
+    val programName: String? = null,
     val program: String? = null,
     val membershipNumber: String? = null,
     val tier: String? = null,

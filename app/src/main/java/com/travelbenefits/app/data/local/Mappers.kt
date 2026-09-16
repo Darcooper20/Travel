@@ -68,6 +68,7 @@ fun LoyaltyAccountEntity.toDomain(): LoyaltyAccount = LoyaltyAccount(
     qualifyingProgress = qualifyingProgress,
     lastActivityAt = lastActivityAt,
     memberName = memberName,
+    customProgramName = customProgramName,
 )
 
 fun TripEntity.toDomain(): Trip = Trip(

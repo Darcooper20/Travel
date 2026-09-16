@@ -132,7 +132,7 @@ fun LoyaltyScreen(onOpenSettings: () -> Unit, viewModel: LoyaltyViewModel = hilt
     pendingDelete?.let { account ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Remove ${account.program.displayName}?") },
+            title = { Text("Remove ${account.programDisplayName}?") },
             text = { Text("The next email sync may add it back if a statement shows up; delete it from Gmail scanning by turning off loyalty scanning in Settings.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -165,7 +165,14 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(account.program.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text(account.programDisplayName, style = MaterialTheme.typography.titleMedium)
+                    if (account.isUncatalogued) {
+                        Text(
+                            "Found in your email. Not in the built-in catalog, so there is no tier ladder, expiry rule or point value for it - the balance is shown as-is.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Text(
                         listOfNotNull(account.tier ?: "No status", account.membershipNumber?.let { "#$it" }).joinToString(" • "),
                         style = MaterialTheme.typography.bodySmall,
@@ -246,7 +253,7 @@ private fun AccountCard(state: AccountCardState, onEdit: () -> Unit, onDelete: (
                     }
                 }
                 if (profile.balanceUnit == com.travelbenefits.app.domain.model.BalanceUnit.POINTS) LabelValue("Est. value per point", "${profile.estValueCentsPerPoint}¢")
-                profile.basePointsPerDollar?.let { LabelValue("Base earn", "${it}x per $ with ${account.program.displayName}") }
+                profile.basePointsPerDollar?.let { LabelValue("Base earn", "${it}x per $ with ${account.programDisplayName}") }
                 LabelValue("Expiry rule", profile.expiration.summary)
                 if (profile.tiers.isNotEmpty()) {
                     Text("Elite ladder (${profile.qualifyingMetric.label.lowercase()})", style = MaterialTheme.typography.labelMedium)
@@ -310,7 +317,8 @@ private fun EditAccountDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 DropdownPicker(
                     label = "Program",
-                    options = LoyaltyProgram.entries,
+                    // The catch-all for email-discovered programmes is not something to pick by hand.
+                    options = LoyaltyProgram.entries.filter { it != LoyaltyProgram.OTHER_REWARDS },
                     selected = state.program,
                     optionLabel = { "${it.displayName} (${it.kind.label})" },
                     onSelected = { program -> onChange { it.copy(program = program) } },

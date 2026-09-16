@@ -26,4 +26,6 @@ data class LoyaltyAccountEntity(
     val lastActivityAt: Long? = null,
     /** Added in DB v4. Null = the app's owner. */
     val memberName: String? = null,
+    /** Added in DB v11: real name of a programme not in the built-in catalog. */
+    val customProgramName: String? = null,
 )

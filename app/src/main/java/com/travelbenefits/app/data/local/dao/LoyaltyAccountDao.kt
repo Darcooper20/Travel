@@ -22,6 +22,10 @@ interface LoyaltyAccountDao {
     @Query("SELECT * FROM loyalty_accounts WHERE program = :program AND memberName = :memberName LIMIT 1")
     suspend fun findByProgramAndMember(program: LoyaltyProgram, memberName: String): LoyaltyAccountEntity?
 
+    /** Uncatalogued programmes all share program = OTHER_REWARDS, so they are told apart by name. */
+    @Query("SELECT * FROM loyalty_accounts WHERE customProgramName = :name COLLATE NOCASE AND memberName IS NULL LIMIT 1")
+    suspend fun findByCustomProgramName(name: String): LoyaltyAccountEntity?
+
     @Query("SELECT * FROM loyalty_accounts")
     suspend fun getAll(): List<LoyaltyAccountEntity>
 

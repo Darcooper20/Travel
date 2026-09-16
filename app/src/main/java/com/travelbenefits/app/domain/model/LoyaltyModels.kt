@@ -79,6 +79,12 @@ data class ProgramProfile(
     val qualificationYear: String? = null,
     /** Program's rule on pooling/transferring points between members; null = not verified. */
     val poolingRule: String? = null,
+    /**
+     * False for a program discovered in email that the catalog knows nothing
+     * about. Its [estValueCentsPerPoint] is a placeholder, not an estimate, so
+     * callers must report the value as unknown rather than compute one.
+     */
+    val valuationIsKnown: Boolean = true,
 ) {
     /** "42,500" for points programs, "$42" for dollar balances. */
     fun formatBalance(amount: Long): String = when (balanceUnit) {
