@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.travelbenefits.app.auth.GmailAuthManager
 import com.travelbenefits.app.auth.OAuthSetupInfo
 import com.travelbenefits.app.data.local.AppPrefs
+import com.travelbenefits.app.data.local.CrashLog
 import com.travelbenefits.app.data.local.SecurePrefs
 import com.travelbenefits.app.data.local.SyncSettings
 import com.travelbenefits.app.data.repository.ActivityRepository
@@ -56,6 +57,7 @@ data class PlaidUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val securePrefs: SecurePrefs,
+    private val crashLog: CrashLog,
     private val appPrefs: AppPrefs,
     private val gmailAuthManager: GmailAuthManager,
     val oauthSetupInfo: OAuthSetupInfo,
@@ -232,6 +234,15 @@ class SettingsViewModel @Inject constructor(
 
     fun setValuation(currency: RewardCurrency, centsPerPoint: String) {
         viewModelScope.launch { overrideRepository.set("currency:${currency.name}", OverrideRepository.KEY_VALUATION, centsPerPoint.trim().toDoubleOrNull()?.toString()) }
+    }
+
+    private val _lastCrash = MutableStateFlow(crashLog.lastCrash())
+    /** Report from the last time the app died, so a sideloaded build can be diagnosed. */
+    val lastCrash: StateFlow<String?> = _lastCrash.asStateFlow()
+
+    fun dismissCrashReport() {
+        crashLog.clear()
+        _lastCrash.value = null
     }
 
     fun showSetupGuideAgain() = appPrefs.setOnboardingDone(false)

@@ -71,6 +71,8 @@ fun SettingsScreen(
     val prefs by viewModel.preferences.collectAsState()
     val members by viewModel.members.collectAsState()
     val sync by viewModel.syncSettings.collectAsState()
+    val lastCrash by viewModel.lastCrash.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val isGmailConnected by viewModel.isGmailConnected.collectAsState()
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -121,6 +123,35 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            if (lastCrash != null) {
+                item {
+                    SectionCard(title = "The app stopped unexpectedly") {
+                        Text(
+                            "A report was saved the last time this happened. Nothing was sent anywhere. Share it with whoever maintains " +
+                                "this build so the cause can be found; it contains a stack trace and your device model, and no keys or account data.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        SelectionContainer {
+                            Text(
+                                lastCrash.orEmpty().lineSequence().take(14).joinToString("\n"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                val share = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Travel Benefits crash report")
+                                    putExtra(Intent.EXTRA_TEXT, lastCrash.orEmpty())
+                                }
+                                runCatching { context.startActivity(Intent.createChooser(share, "Share crash report")) }
+                            }) { Text("Share report") }
+                            TextButton(onClick = viewModel::dismissCrashReport) { Text("Dismiss") }
+                        }
+                    }
+                }
+            }
             item {
                 SectionCard(title = "Connections") {
                     Text(

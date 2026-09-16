@@ -91,7 +91,13 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="${appAuthRedirectScheme}" android:path="/oauth2redirect" />
+                <!--
+                  Scheme only, which is what AppAuth and Google's own samples use for a
+                  reversed-client-ID redirect. android:path is only meaningful alongside
+                  android:host, and there is no host in "com.googleusercontent.apps.x:/oauth2redirect",
+                  so specifying it was at best ignored and at worst stopped the redirect matching.
+                -->
+                <data android:scheme="${appAuthRedirectScheme}" />
             </intent-filter>
         </activity>
 

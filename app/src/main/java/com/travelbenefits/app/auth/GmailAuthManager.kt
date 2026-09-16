@@ -45,6 +45,9 @@ class GmailAuthManager @Inject constructor(
         Uri.parse("https://oauth2.googleapis.com/token"),
     )
 
+    /** One instance for the app's lifetime, used only to build authorization intents. */
+    private val requestService: AuthorizationService by lazy { AuthorizationService(context) }
+
     private val _isSignedIn = MutableStateFlow(loadAuthState() != null)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
 
@@ -88,8 +91,10 @@ class GmailAuthManager @Inject constructor(
             .setAdditionalParameters(mapOf("access_type" to "offline"))
             .build()
 
-        val authService = AuthorizationService(context)
-        return authService.getAuthorizationRequestIntent(request)
+        // Reused rather than created per attempt: each AuthorizationService binds
+        // to the browser's custom-tabs service, and a fresh one per tap left a
+        // binding behind every time.
+        return requestService.getAuthorizationRequestIntent(request)
     }
 
     /** Call from the Activity that receives the redirect Intent (see MainActivity's ActivityResultLauncher). */
