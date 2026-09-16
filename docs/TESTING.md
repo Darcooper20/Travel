@@ -63,6 +63,8 @@ open app/build/reports/androidTests/connected/index.html
 | Stage E follow-ups (fe96bdc … 213dc22) | migrations passed on every run; the smoke test exposed, in order: a below-the-fold tap, stale onboarding state cached by the `AppPrefs` singleton, a race with the deferred post-onboarding navigation, and finally a real navigation bug (Home tab ignored when a screen sat directly above the start destination) |
 | Stage E final (b0425a0) | **both jobs green**: 34 unit tests, 5 instrumented tests (3 migration, 2 smoke) on an API 30 emulator; APK published to `debug-latest` |
 | Post-audit fixes (042e0a0 … 0da229b) | **all green**: 111 unit tests, 5 instrumented tests, debug APK and release (R8) APK. Four defects fixed, previously untested engines covered. See "Audit findings" below |
+| Gmail crash + auto-add + uncatalogued programmes (a1c…42316da) | **all green** on both emulator API levels. The AppCompat theme crash on `RedirectUriReceiverActivity` was found from a user's crash report, not from CI, which is why an instrumented test now launches that activity directly |
+| Non-US programmes (2e9a6e7) | **all green**: 152 unit tests, 8 instrumented tests on API 30 and API 34 emulators, debug and release (R8) APKs. 12 new tests cover market coverage, profile completeness, the unvalued-programme path, and the verified expiry windows |
 
 ## Acceptance journey
 
