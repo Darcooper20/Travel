@@ -135,6 +135,12 @@ every push, so it always has the newest build.
   already stored is never overwritten, so anything you typed in stands. The
   number is shown in full everywhere in the app - it is your own data on your
   own device, and hiding it from you would only make it harder to use.
+- **Welcome emails are searched without a date limit.** A "welcome to the
+  programme" email always prints the membership number, and is always older
+  than the sync window, so for any tracked account that still has no number
+  the scan runs one extra search against that programme's senders with no
+  `after:` bound. It stops as soon as a number is found, so it costs nothing
+  once your accounts are filled in.
 - **The Gmail scan uses an LLM to read email text, not fixed regex rules**,
   because loyalty program emails (hotel and airline) have no consistent
   format. It can miss things or occasionally misread a number - always

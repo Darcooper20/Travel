@@ -237,6 +237,38 @@ class EmailMonitorRepository @Inject constructor(
                 }
                 searchedThisRun = perProgramIds.keys.map { it.name }.toSet()
 
+                // The enrolment hunt. A "welcome to the programme" email is the
+                // one place a membership number is always printed in full - it
+                // is the whole point of the email - but it is also, by
+                // definition, the oldest mail that sender ever sent you. Every
+                // other search here is bounded by "after:<last sync>" or at
+                // most the first-scan lookback, so a number sitting in a
+                // welcome email from three years ago was unreachable no matter
+                // how many times the app synced.
+                //
+                // This search carries no date bound at all. It is affordable
+                // because it is aimed narrowly: only at programmes already
+                // tracked whose account has no number yet, and only at
+                // enrolment-shaped subjects from that programme's own senders.
+                // Once a number is found the account stops qualifying, so the
+                // hunt shrinks to nothing on its own rather than running
+                // forever.
+                val needNumber = runCatching { loyaltyAccountDao.getAll() }.getOrDefault(emptyList())
+                    .filter { it.membershipNumber.isNullOrBlank() }
+                    .map { it.program }
+                    .toSet()
+                for (program in perProgramIds.keys.filter { it in needNumber }) {
+                    val senders = program.gmailSenderDomains.joinToString(" OR ") { "from:$it" }
+                    val query = "($senders) $ENROLMENT_SUBJECT_TERMS"
+                    val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = MESSAGES_FOR_ENROLMENT) }
+                        .onFailure { searchFailures++; noteFailure(it) }
+                        .getOrNull() ?: continue
+                    // Appended, so this programme's recent mail still leads: a
+                    // current balance is worth more than an old welcome note,
+                    // and the round-robin below reaches both.
+                    perProgramIds[program] = (perProgramIds[program].orEmpty() + list.messages.map { it.id }).distinct()
+                }
+
                 // Round-robin, not one programme at a time. Appending each
                 // programme's whole result list in turn means that under the
                 // per-sync email cap the programmes at the end of the list are
@@ -880,6 +912,20 @@ class EmailMonitorRepository @Inject constructor(
     )
 
     companion object {
+        /**
+         * Subjects an enrolment or welcome email uses. Deliberately anchored to
+         * a programme's own senders wherever it is used: "welcome" on its own
+         * matches half a mailbox, so it is never put into the sender-agnostic
+         * sweep.
+         */
+        private const val ENROLMENT_SUBJECT_TERMS =
+            "subject:(\"welcome to\" OR welcome OR \"you're in\" OR \"you are in\" OR \"membership confirmed\" OR " +
+                "\"account created\" OR \"account confirmation\" OR \"registration\" OR \"you've joined\" OR \"thanks for joining\" OR " +
+                "\"thank you for joining\" OR \"your membership\" OR \"member number\" OR \"membership number\" OR \"your new account\")"
+
+        /** Three is plenty: a programme sends one welcome email, and near-duplicates are wasted reads. */
+        private const val MESSAGES_FOR_ENROLMENT = 3
+
         private const val MESSAGES_PER_PROGRAM = 10
         private const val MESSAGES_PER_SHOP = 4
         private const val MESSAGES_FOR_TRIPS = 25
@@ -1006,7 +1052,14 @@ class EmailMonitorRepository @Inject constructor(
                     summary for an existing account is not. The app uses this to decide
                     whether the reader actually holds the card, so guessing costs them.
                     Rules: include an email in loyaltyUpdates only if it shows account-specific
-                    details (a member number, tier/status, or a points/miles balance). This
+                    details (a member number, tier/status, or a points/miles balance). A
+                    welcome, enrolment or "your membership is confirmed" email counts on
+                    that test even though it states no balance, and it is usually the one
+                    place the member number is printed in full - extract it. Be careful
+                    what you take from one: these emails are full of promo codes, referral
+                    codes, offer codes and voucher codes, and none of those is a
+                    membership number. If the email shows several numbers and it is not
+                    clear which identifies the account, return null. This
                     applies to ANY loyalty or rewards programme, not only the ones listed
                     above: a supermarket, pharmacy, cinema, gym, rail operator or airline
                     that is not in the list still counts - use "OTHER_REWARDS" and give its
