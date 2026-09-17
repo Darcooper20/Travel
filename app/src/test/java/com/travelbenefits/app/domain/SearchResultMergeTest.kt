@@ -47,8 +47,8 @@ class SearchResultMergeTest {
 
     @Test
     fun `empty input and empty sources are handled`() {
-        assertEquals(emptyList<Pair<String, Int>>(), SearchResultMerge.roundRobin(emptyList()))
-        assertEquals(emptyList<Pair<String, Int>>(), SearchResultMerge.roundRobin(listOf("a" to emptyList())))
+        assertEquals(emptyList<Pair<String, Int>>(), SearchResultMerge.roundRobin<String, Int>(emptyList()))
+        assertEquals(emptyList<Pair<String, Int>>(), SearchResultMerge.roundRobin(listOf("a" to emptyList<Int>())))
     }
 
     /**
