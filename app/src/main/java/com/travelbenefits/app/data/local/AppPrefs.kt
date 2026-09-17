@@ -69,6 +69,28 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
     /** True when the last sync could not search, download or read part of the mailbox. */
     val lastSyncHadFailures: StateFlow<Boolean> = _lastSyncHadFailures.asStateFlow()
 
+    private val _searchedPrograms = MutableStateFlow(prefs.getStringSet(KEY_SEARCHED_PROGRAMS, null).orEmpty().toSet())
+    /**
+     * Names of the programmes whose Gmail senders have already been searched
+     * over the full lookback window. Anything NOT in here has never been
+     * looked for - typically because the app version that added it arrived
+     * after the last sync - so its search must use the full window rather
+     * than the incremental one, or its mail (all of which predates the sync
+     * watermark) would never be found at all.
+     */
+    val searchedPrograms: StateFlow<Set<String>> = _searchedPrograms.asStateFlow()
+
+    /**
+     * Called only when a sync read everything it found. While the per-sync
+     * email cap is truncating results, some of what was searched for was
+     * never actually read, so the back-fill stays pending and the next sync
+     * searches the full window again.
+     */
+    fun recordSearchedPrograms(names: Set<String>) {
+        prefs.edit().putStringSet(KEY_SEARCHED_PROGRAMS, names).apply()
+        _searchedPrograms.value = names
+    }
+
     private val _onboardingDone = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDED, false))
     /** False until the user finishes (or skips) the guided setup; Settings can reset it to show the guide again. */
     val onboardingDone: StateFlow<Boolean> = _onboardingDone.asStateFlow()
@@ -85,6 +107,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         if (key == null || key == KEY_ONBOARDED) _onboardingDone.value = p.getBoolean(KEY_ONBOARDED, false)
         if (key == null) {
             _syncSettings.value = load()
+            _searchedPrograms.value = p.getStringSet(KEY_SEARCHED_PROGRAMS, null).orEmpty().toSet()
             _lastSyncAt.value = p.getLong(KEY_LAST_SYNC_AT, 0L)
             _lastSyncSummary.value = p.getString(KEY_LAST_SYNC_SUMMARY, null)
             _lastSyncHadFailures.value = p.getBoolean(KEY_LAST_SYNC_FAILED, false)
@@ -130,7 +153,11 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
 
     /** Forget the sync watermark so the next scan re-reads the full lookback window (processed-email ledger still dedupes). */
     fun resetSyncWatermark() {
-        prefs.edit().remove(KEY_LAST_SYNC_AT).remove(KEY_LAST_SYNC_SUMMARY).remove(KEY_LAST_SYNC_FAILED).apply()
+        // The searched-programme set goes too: it only means anything relative
+        // to a watermark, and keeping it would stop the full re-scan being full.
+        prefs.edit().remove(KEY_LAST_SYNC_AT).remove(KEY_LAST_SYNC_SUMMARY).remove(KEY_LAST_SYNC_FAILED)
+            .remove(KEY_SEARCHED_PROGRAMS).apply()
+        _searchedPrograms.value = emptySet()
         _lastSyncAt.value = 0L
         _lastSyncSummary.value = null
         _lastSyncHadFailures.value = false
@@ -177,6 +204,7 @@ class AppPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_SCAN_SHOPS = "scan_shop_emails"
         const val KEY_SCAN_CARDS = "scan_card_emails"
         const val KEY_SCAN_REGIONS = "scan_regions"
+        const val KEY_SEARCHED_PROGRAMS = "searched_programs"
         const val KEY_MAX_EMAILS = "max_emails_per_sync"
         const val KEY_DAILY_REMINDERS = "daily_reminders_enabled"
         const val KEY_RESEARCH = "research_enabled"

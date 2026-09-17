@@ -25,6 +25,7 @@ import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.data.catalog.CardCatalog
 import com.travelbenefits.app.domain.model.LoyaltyProgram
+import com.travelbenefits.app.domain.SearchResultMerge
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
 import com.travelbenefits.app.domain.model.RewardCurrency
@@ -168,6 +169,7 @@ class EmailMonitorRepository @Inject constructor(
                 var searchFailures = 0
                 var fetchFailures = 0
                 var firstFailure: String? = null
+                var searchedThisRun: Set<String> = emptySet()
                 fun noteFailure(t: Throwable) { if (firstFailure == null) firstFailure = describeError(t) }
                 // Insertion order = priority under the per-sync cap: bookings first
                 // (time-sensitive), then hotel/airline statements, then card
@@ -206,24 +208,47 @@ class EmailMonitorRepository @Inject constructor(
                         .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull()?.messages?.forEach { ref -> cardRefs += ref.id }
                 }
+                // A programme the app has never searched before needs the FULL
+                // lookback window, not the incremental one. It was added by an
+                // app update, so every email it could match is older than the
+                // sync watermark - searching "since last sync" would find
+                // nothing and the programme would look like it does not exist
+                // in your mailbox. This is what stopped newly-added markets
+                // (Qantas, Avios, Aeroplan...) from ever being picked up.
+                val alreadySearched = appPrefs.searchedPrograms.value
+                val fullWindowSeconds = (now - TimeUnit.DAYS.toMillis(settings.firstScanLookbackDays.toLong())) / 1000
+                val perProgramIds = linkedMapOf<LoyaltyProgram, List<String>>()
                 for (program in searchablePrograms) {
-                    if (program.kind == LoyaltyProgramKind.SHOP && cardRefs.isNotEmpty()) {
-                        // Card statements slot in ahead of the first shop program.
-                        cardRefs.forEach { refs.putIfAbsent(it, null) }
-                        cardRefs.clear()
-                    }
                     // Shop senders are mostly marketing, so skip Gmail's Promotions bucket for them; hotel/airline
                     // statements sometimes land there too, so those are read regardless.
                     val isShop = program.kind == LoyaltyProgramKind.SHOP
                     val perProgram = if (isShop) MESSAGES_PER_SHOP else MESSAGES_PER_PROGRAM
                     val exclusions = if (isShop) " -category:promotions" else ""
-                    val query = "(" + program.gmailSenderDomains.joinToString(" OR ") { "from:$it" } + ")$exclusions after:$afterEpochSeconds"
+                    val after = if (program.name in alreadySearched) afterEpochSeconds else fullWindowSeconds
+                    val query = "(" + program.gmailSenderDomains.joinToString(" OR ") { "from:$it" } + ")$exclusions after:$after"
                     val list = runCatching { gmailApi.listMessages(bearer, query, maxResults = perProgram) }
                         .onFailure { searchFailures++; noteFailure(it) }
                         .getOrNull() ?: continue
-                    list.messages.forEach { ref -> refs.putIfAbsent(ref.id, program) }
+                    perProgramIds[program] = list.messages.map { it.id }
                 }
+                searchedThisRun = perProgramIds.keys.map { it.name }.toSet()
+
+                // Round-robin, not one programme at a time. Appending each
+                // programme's whole result list in turn means that under the
+                // per-sync email cap the programmes at the end of the list are
+                // never reached on a busy mailbox: ~50 booking emails plus
+                // fifteen programmes at ten each already exceeds a cap of 60
+                // before the sixteenth programme is considered. Taking one
+                // message from each programme per round gives every programme a
+                // share of the cap instead of starving the tail of the list.
+                fun interleave(programs: List<LoyaltyProgram>) {
+                    val sources = programs.mapNotNull { p -> perProgramIds[p]?.let { p to it } }
+                    SearchResultMerge.roundRobin(sources).forEach { (program, id) -> refs.putIfAbsent(id, program) }
+                }
+                interleave(searchablePrograms.filter { it.kind != LoyaltyProgramKind.SHOP })
+                // Card statements still slot in ahead of the shop programmes.
                 cardRefs.forEach { refs.putIfAbsent(it, null) }
+                interleave(searchablePrograms.filter { it.kind == LoyaltyProgramKind.SHOP })
 
                 // Everything above searches senders this app already knows. A rewards
                 // programme the catalog has never heard of has no known sender, so it
@@ -238,7 +263,15 @@ class EmailMonitorRepository @Inject constructor(
                 }
 
                 val already = if (refs.isEmpty()) emptySet() else processedEmailDao.findExisting(refs.keys.toList()).toSet()
-                val toRead = refs.keys.filterNot { it in already }.take(settings.maxEmailsPerSync)
+                val unread = refs.keys.filterNot { it in already }
+                val toRead = unread.take(settings.maxEmailsPerSync)
+                // A programme counts as searched only once nothing it turned up
+                // was left behind by the cap. Marking it done while some of its
+                // mail went unread would end the full-window back-fill early and
+                // strand exactly the emails the back-fill exists to find.
+                if (toRead.size == unread.size) {
+                    appPrefs.recordSearchedPrograms(alreadySearched + searchedThisRun)
+                }
                 if (toRead.isEmpty()) {
                     val report = SyncReport(
                         emailsRead = 0,
