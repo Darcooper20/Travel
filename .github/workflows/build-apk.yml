@@ -25,6 +25,17 @@ on:
 permissions:
   contents: write
 
+# Every run of this workflow publishes to the same "debug-latest" release, so
+# two overlapping runs race to replace one asset. That race is not theoretical:
+# three pushes in quick succession left the release with its old APK deleted
+# and the new one never saved, so the download link 404'd while CI looked
+# merely "failed at the last step". Superseded runs are cancelled instead -
+# only the newest commit's APK is wanted anyway, and a cancelled run cannot
+# delete the asset a live one just uploaded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
