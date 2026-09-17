@@ -48,7 +48,10 @@ object MembershipNumber {
 
         val withoutLabel = LABELS.replace(trimmed, "").trim()
         // Internal spacing is how programmes print long numbers; it is not part of the number.
-        val compact = withoutLabel.replace(Regex("""[\s ]+"""), "")
+        // No regex here on purpose: the character to strip alongside ordinary
+        // whitespace is a non-breaking space, and written literally it is an
+        // invisible character sitting inside a pattern. Escaped, it is plain.
+        val compact = withoutLabel.filterNot { it.isWhitespace() || it == '\u00A0' }
         if (compact.isEmpty() || compact.length > MAX_LENGTH) return null
         if (compact.lowercase() in NOT_A_NUMBER) return null
         // Letters are fine (several programmes prefix them), but the thing has
@@ -57,15 +60,5 @@ object MembershipNumber {
         if (compact.count { it.isLetterOrDigit() } < MIN_SIGNIFICANT) return null
         if (compact.none { it.isDigit() }) return null
         return compact
-    }
-
-    /**
-     * How a stored number should read in the activity feed, which is a change
-     * log rather than the place you go to copy your number out. The Loyalty
-     * screen shows it in full; this does not.
-     */
-    fun masked(number: String): String {
-        val tail = number.takeLast(4)
-        return if (number.length <= 4) tail else "••••$tail"
     }
 }

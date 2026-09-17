@@ -374,7 +374,7 @@ class EmailMonitorRepository @Inject constructor(
         if (existing != null) {
             if (!existing.membershipNumber.isNullOrBlank()) return false
             loyaltyAccountDao.insert(existing.copy(membershipNumber = number, lastUpdated = now))
-            event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} member number added", "From a booking: ${MembershipNumber.masked(number)}", emailAt)
+            event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} member number added", "From a booking: $number", emailAt)
             return true
         }
         loyaltyAccountDao.insert(
@@ -392,7 +392,7 @@ class EmailMonitorRepository @Inject constructor(
                 lastActivityAt = emailAt,
             ),
         )
-        event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} membership found", "From a booking: ${MembershipNumber.masked(number)}", emailAt)
+        event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} membership found", "From a booking: $number", emailAt)
         return true
     }
 
@@ -842,7 +842,7 @@ class EmailMonitorRepository @Inject constructor(
     private fun describe(e: LoyaltyAccountEntity): String = listOfNotNull(
         e.tier?.let { "Status: $it" },
         e.pointsNumeric?.let { LoyaltyAccount.formatPoints(it) + " points" } ?: e.pointsBalance,
-        e.membershipNumber?.takeIf { it.isNotBlank() }?.let { "#${MembershipNumber.masked(it)}" },
+        e.membershipNumber?.takeIf { it.isNotBlank() }?.let { "#$it" },
     ).joinToString(" • ")
 
     private fun buildTitle(kind: TripKind, provider: String, origin: String?, destination: String?): String = when (kind) {

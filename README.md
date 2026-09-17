@@ -133,8 +133,8 @@ every push, so it always has the newest build.
   short membership number, and saving one would stop the app asking for the
   real thing while leaving you holding something you cannot use. A number
   already stored is never overwritten, so anything you typed in stands. The
-  activity feed shows only the last four digits; the Loyalty screen shows the
-  number in full.
+  number is shown in full everywhere in the app - it is your own data on your
+  own device, and hiding it from you would only make it harder to use.
 - **The Gmail scan uses an LLM to read email text, not fixed regex rules**,
   because loyalty program emails (hotel and airline) have no consistent
   format. It can miss things or occasionally misread a number - always

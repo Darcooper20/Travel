@@ -72,13 +72,6 @@ class MembershipNumberTest {
     }
 
     @Test
-    fun `the activity feed shows only the tail`() {
-        assertEquals("••••7890", MembershipNumber.masked("1234567890"))
-        assertEquals("4821", MembershipNumber.masked("4821"))
-        assertEquals("821", MembershipNumber.masked("821"))
-    }
-
-    @Test
     fun `a cleaned number never still contains a mask`() {
         // Belt and braces: whatever survives clean() is what gets stored and
         // shown, so it must never be something that came in masked.
