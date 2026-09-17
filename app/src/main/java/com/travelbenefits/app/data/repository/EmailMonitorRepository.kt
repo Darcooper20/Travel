@@ -25,6 +25,7 @@ import com.travelbenefits.app.domain.model.LoyaltyAccountSource
 import com.travelbenefits.app.domain.PromptGuard
 import com.travelbenefits.app.data.catalog.CardCatalog
 import com.travelbenefits.app.domain.model.LoyaltyProgram
+import com.travelbenefits.app.domain.MembershipNumber
 import com.travelbenefits.app.domain.SearchResultMerge
 import com.travelbenefits.app.domain.model.LoyaltyProgramKind
 import com.travelbenefits.app.domain.model.ResolvedWalletCard
@@ -52,6 +53,8 @@ data class SyncReport(
     val cardBalanceUpdates: Int = 0,
     /** Cards created from a statement email, awaiting confirmation. */
     val cardsAdded: Int = 0,
+    /** Member numbers filled in on accounts that had none - usually off a booking confirmation. */
+    val membershipNumbersFound: Int = 0,
     val certificatesFound: Int = 0,
     val highlights: List<String> = emptyList(),
     /** Gmail searches that errored. Mail they would have matched was never seen, so "nothing found" would be a lie. */
@@ -63,7 +66,7 @@ data class SyncReport(
     /** First underlying error, shown so the user can act (expired key, no network, quota). */
     val failureReason: String? = null,
 ) {
-    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + cardsAdded + certificatesFound
+    val notableCount: Int get() = accountsFound + balanceChanges + tierChanges + newTrips + expiryWarnings + cardBalanceUpdates + cardsAdded + certificatesFound + membershipNumbersFound
 
     /** True when some part of this run failed, so an empty result does NOT mean "there was nothing". */
     val isPartial: Boolean get() = searchFailures > 0 || fetchFailures > 0 || unreadableEmails > 0
@@ -96,6 +99,7 @@ data class SyncReport(
                 expiryWarnings.takeIf { it > 0 }?.let { "$it expiry warning(s)" },
                 cardBalanceUpdates.takeIf { it > 0 }?.let { "$it card balance update(s)" },
                 cardsAdded.takeIf { it > 0 }?.let { "$it new card(s) to confirm" },
+                membershipNumbersFound.takeIf { it > 0 }?.let { "$it member number(s) added" },
                 certificatesFound.takeIf { it > 0 }?.let { "$it certificate(s)" },
             ).joinToString(", ") + " from $emailsRead email(s)."
         }
@@ -347,6 +351,51 @@ class EmailMonitorRepository @Inject constructor(
         appPrefs.resetSyncWatermark()
     }
 
+    /**
+     * Saves a membership number found on a booking against the programme's
+     * account, creating that account if it is not tracked yet - holding a
+     * number on a reservation is proof of membership, even with no balance to
+     * show alongside it.
+     *
+     * Never overwrites a number already stored. A number the user typed in, or
+     * one taken from a statement, is at least as trustworthy as one parsed off
+     * a booking, and silently replacing it would be the kind of change nobody
+     * would notice until a flight failed to credit. Returns true only when
+     * something was actually written, so the sync report cannot overcount.
+     */
+    private suspend fun recordMembershipNumber(
+        program: LoyaltyProgram,
+        number: String,
+        sourceSubject: String?,
+        emailAt: Long,
+        now: Long,
+    ): Boolean {
+        val existing = loyaltyAccountDao.findByProgram(program)
+        if (existing != null) {
+            if (!existing.membershipNumber.isNullOrBlank()) return false
+            loyaltyAccountDao.insert(existing.copy(membershipNumber = number, lastUpdated = now))
+            event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} member number added", "From a booking: ${MembershipNumber.masked(number)}", emailAt)
+            return true
+        }
+        loyaltyAccountDao.insert(
+            LoyaltyAccountEntity(
+                program = program,
+                membershipNumber = number,
+                tier = null,
+                pointsBalance = null,
+                source = LoyaltyAccountSource.GMAIL_SCAN,
+                sourceEmailSubject = sourceSubject,
+                lastUpdated = now,
+                // No balance was stated, and a booking says nothing about one.
+                // Unknown, not zero.
+                pointsNumeric = null,
+                lastActivityAt = emailAt,
+            ),
+        )
+        event(ActivityKind.ACCOUNT_FOUND, program, "${program.displayName} membership found", "From a booking: ${MembershipNumber.masked(number)}", emailAt)
+        return true
+    }
+
     private suspend fun ensureAccountEmail(bearer: String) {
         if (securePrefs.gmailAccountEmail != null) return
         runCatching { gmailApi.getProfile(bearer) }.getOrNull()?.emailAddress?.let { securePrefs.gmailAccountEmail = it }
@@ -440,6 +489,7 @@ class EmailMonitorRepository @Inject constructor(
         var cardBalanceUpdates = 0
         var cardsAdded = 0
         var accountsFound = 0
+        var membershipNumbersFound = 0
         var balanceChanges = 0
         var tierChanges = 0
         var newTrips = 0
@@ -461,7 +511,10 @@ class EmailMonitorRepository @Inject constructor(
             val customName = item.programName?.trim()?.takeIf { it.isNotBlank() && it.length <= 60 }
             val program = known ?: customName?.let { LoyaltyProgram.OTHER_REWARDS } ?: continue
             val numeric = item.pointsNumeric?.toLong() ?: LoyaltyAccount.parsePoints(item.pointsBalance)
-            if (item.membershipNumber == null && item.tier == null && numeric == null && item.pointsBalance == null && item.qualifyingProgress == null) continue
+            // A masked number ("****4821") is not a membership number, so it is
+            // dropped rather than stored - see MembershipNumber.
+            val memberNumber = MembershipNumber.clean(item.membershipNumber)
+            if (memberNumber == null && item.tier == null && numeric == null && item.pointsBalance == null && item.qualifyingProgress == null) continue
 
             val candidate = candidateFor(item.sourceIndex)
             val emailAt = candidate?.receivedAt ?: now
@@ -474,18 +527,20 @@ class EmailMonitorRepository @Inject constructor(
             }
             if (existing?.lastActivityAt != null && emailAt < existing.lastActivityAt) {
                 // Older than what we already know - only fill gaps, never regress.
-                if (existing.membershipNumber == null && item.membershipNumber != null) {
-                    loyaltyAccountDao.insert(existing.copy(membershipNumber = item.membershipNumber))
+                if (existing.membershipNumber.isNullOrBlank() && memberNumber != null) {
+                    loyaltyAccountDao.insert(existing.copy(membershipNumber = memberNumber))
+                    membershipNumbersFound++
                 }
                 continue
             }
 
+            if (existing != null && existing.membershipNumber.isNullOrBlank() && memberNumber != null) membershipNumbersFound++
             val tier = item.tier ?: existing?.tier
             val expireAt = parseDate(item.pointsExpireOn)?.let { it.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() } ?: existing?.pointsExpireAt
             val entity = LoyaltyAccountEntity(
                 id = existing?.id ?: 0,
                 program = program,
-                membershipNumber = item.membershipNumber ?: existing?.membershipNumber,
+                membershipNumber = existing?.membershipNumber?.takeIf { it.isNotBlank() } ?: memberNumber,
                 tier = tier,
                 pointsBalance = item.pointsBalance ?: existing?.pointsBalance,
                 source = LoyaltyAccountSource.GMAIL_SCAN,
@@ -541,6 +596,23 @@ class EmailMonitorRepository @Inject constructor(
             val start = parseDate(item.startDate)?.toEpochDay()
             val end = parseDate(item.endDate)?.toEpochDay() ?: start
             val numberState = parseNumberState(item)
+            // A booking confirmation is the likeliest place a membership number
+            // appears in full: it is printed on the reservation because the
+            // airline needs it to credit the flight. Statement emails, by
+            // contrast, usually mask it. This is the single best source the app
+            // was not using.
+            // Guard against the one confusion the validator cannot catch on its
+            // own: a booking reference looks exactly like a short membership
+            // number. If the model handed back the confirmation code, it is not
+            // a member number no matter how plausible its shape.
+            val bookingNumber = MembershipNumber.clean(item.loyaltyNumber)
+                ?.takeIf { !it.equals(confirmation?.replace(" ", ""), ignoreCase = true) }
+            bookingNumber?.let { number ->
+                if (program != null && recordMembershipNumber(program, number, candidate?.subject, candidate?.receivedAt ?: now, now)) {
+                    membershipNumbersFound++
+                    highlights += "${program.displayName} member number added"
+                }
+            }
             val status = item.status?.uppercase()?.let { st -> com.travelbenefits.app.domain.model.TripStatus.entries.firstOrNull { it.name == st } } ?: com.travelbenefits.app.domain.model.TripStatus.CONFIRMED
             if (duplicate != null) {
                 // Same booking again: only newer emails may change it (older ones fill gaps); cancellations and changes are recorded in history.
@@ -770,7 +842,7 @@ class EmailMonitorRepository @Inject constructor(
     private fun describe(e: LoyaltyAccountEntity): String = listOfNotNull(
         e.tier?.let { "Status: $it" },
         e.pointsNumeric?.let { LoyaltyAccount.formatPoints(it) + " points" } ?: e.pointsBalance,
-        e.membershipNumber?.let { "#$it" },
+        e.membershipNumber?.takeIf { it.isNotBlank() }?.let { "#${MembershipNumber.masked(it)}" },
     ).joinToString(" • ")
 
     private fun buildTitle(kind: TripKind, provider: String, origin: String?, destination: String?): String = when (kind) {
@@ -865,7 +937,7 @@ class EmailMonitorRepository @Inject constructor(
                           "sourceIndex": N (the Email number),
                           "program": one of $programNames, or "OTHER_REWARDS" for any loyalty or rewards programme not in that list,
                           "programName": the programme's own name exactly as the email gives it (e.g. "Panera MyPanera Rewards", "IKEA Family"). REQUIRED when program is "OTHER_REWARDS"; null otherwise,
-                          "membershipNumber": string or null,
+                          "membershipNumber": the member number ONLY if the email prints it in full. If it is masked or partial ("****4821", "xxxx1234", "ending in 4821"), return null - a masked number is not a short number, and the app must not store one as if it were usable,
                           "tier": string or null (e.g. "Gold", "Platinum Elite", "Medallion Silver", "Premier 1K"),
                           "pointsBalance": string or null (as written, e.g. "42,500 points"),
                           "pointsNumeric": integer or null (the balance as a plain number),
@@ -887,6 +959,7 @@ class EmailMonitorRepository @Inject constructor(
                           "destination": string or null (city or property),
                           "loyaltyProgram": one of the program names above, or null,
                           "loyaltyNumberState": "CONFIRMED" if a frequent-flyer/loyalty number is shown attached to the booking, "MISSING" only if the email explicitly says none is attached or asks you to add one, else "UNKNOWN",
+                          "loyaltyNumber": the traveller's frequent-flyer/loyalty number as printed on the booking, ONLY if shown in full; null if masked, partial, or absent. Never copy the booking reference, ticket number or confirmation code here - those are not membership numbers,
                           "status": "CONFIRMED" | "CHANGED" | "CANCELLED" | "PARTIALLY_CANCELLED" (cancellation and schedule-change emails MUST be included with the right status),
                           "departureTimeLocal": "HH:mm" local time of departure/check-in or null,
                           "timeZoneId": IANA zone of the departure airport/hotel (e.g. "America/New_York") or null if unsure,
@@ -1002,6 +1075,8 @@ private data class ExtractedTrip(
     val loyaltyProgram: String? = null,
     val loyaltyNumberOnBooking: Boolean? = null,
     val loyaltyNumberState: String? = null,
+    /** The frequent-flyer/loyalty number printed on the booking, in full. */
+    val loyaltyNumber: String? = null,
     val status: String? = null,
     val departureTimeLocal: String? = null,
     val timeZoneId: String? = null,
